@@ -22,7 +22,6 @@ public class QuizBot extends TelegramLongPollingBot {
     this.quizManager = quizManager;
   }
 
-
   @Override
   public void onUpdateReceived(Update update) {
     try {
