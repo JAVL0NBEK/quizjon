@@ -27,7 +27,7 @@ public class QuizManager {
 
     try{
       var question = quizService.getQuestionById(currentQuestionId);
-      var message = createMessage(chatId, question.getQuestionText());
+      var message = createMessage(chatId,currentQuestionId.toString() +". "+  question.getQuestionText());
       var keyboard = createKeyboard(question.getOptions());
       message.setReplyMarkup(keyboard);
       return message;
@@ -79,7 +79,7 @@ public class QuizManager {
     var message = new EditMessageText();
     message.setChatId(chatId.toString());
     message.setMessageId(messageId);
-    message.setText(question.getQuestionText()); // Savol matni o'zgarmaydi
+    message.setText(currentQuestionId.toString() +". "+  question.getQuestionText()); // Savol matni o'zgarmaydi
     message.setReplyMarkup(updatedKeyboard);
 
     currentQuestionId++; // Keyingi savolga o'tish

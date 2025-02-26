@@ -65,7 +65,7 @@ public class QuizBot extends TelegramLongPollingBot {
       } catch (TelegramApiException e) {
         e.printStackTrace();
       }
-    } else if ("disabled".equals(data)) {
+    } else if (data.startsWith("disabled_")) {
       // Bloklangan tugmani bosgan bo'lsa, hech narsa qilmaymiz
       execute(createMessage(chatId, "Bu tugma faol emas!"));
     } else {
@@ -92,6 +92,6 @@ public class QuizBot extends TelegramLongPollingBot {
 
   @Override
   public String getBotUsername() {
-    return "Quizjon"; // Bot nomi
+    return "Test"; // Bot nomi
   }
 }
