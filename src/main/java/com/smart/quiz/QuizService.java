@@ -18,4 +18,8 @@ public interface QuizService {
   void processFile(MultipartFile file);
 
   void saveQuestionsToDatabase(List<QuestionResponseDto> questions);
+
+  boolean hasNextQuestion(Long questionId);
+
+  void update(Long id, QuestionsEntity requestDto);
 }

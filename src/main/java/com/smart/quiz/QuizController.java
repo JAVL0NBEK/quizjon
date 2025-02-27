@@ -4,10 +4,12 @@ import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 public class QuizController implements QuizApi {
@@ -38,6 +40,13 @@ public class QuizController implements QuizApi {
     } catch (Exception e) {
       return ResponseEntity.badRequest().body("Xatolik: " + e.getMessage());
     }
+  }
+
+  @Override
+  public ResponseEntity<Void> update(Long id, QuestionsEntity requestDto) {
+    log.info("Updating question with id ", id);
+    quizService.update(id, requestDto);
+    return ResponseEntity.ok().build();
   }
 
 }

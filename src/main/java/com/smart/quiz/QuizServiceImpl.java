@@ -4,6 +4,7 @@ import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.OptionsEntity;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
+import com.smart.quiz.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
@@ -141,6 +142,24 @@ public class QuizServiceImpl implements QuizService {
       questionEntity.setOptions(quizMapper.toEntity(options));
       questionRepository.save(questionEntity);
     }
+  }
+
+  @Override
+  public boolean hasNextQuestion(Long questionId) {
+    return questionRepository.existsById(questionId);
+  }
+
+  @Override
+  public void update(Long id, QuestionsEntity requestDto) {
+    log.info("Updating question with id:{} ", id);
+    var entity = findOrFail(id);
+    questionRepository.save(entity);
+  }
+
+  private QuestionsEntity findOrFail(Long id) {
+    return questionRepository.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("question.id",
+            List.of(id.toString())));
   }
 
 }

@@ -2,131 +2,168 @@ package com.smart.quiz.config;
 
 import com.smart.quiz.QuizService;
 import com.smart.quiz.dto.OptionResponseDto;
+import com.smart.quiz.dto.QuestionResponseDto;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+@Slf4j
 @Component
 public class QuizManager {
 
   private final QuizService quizService;
+  private final QuizBot quizBot; // QuizBot obyektini qo‘shamiz
+
   private Long currentQuestionId = 1L;
   private int correctAnswersCount = 0; // To'g'ri javoblar soni
   private int wrongAnswersCount = 0; // Noto'g'ri javoblar soni
 
   @Autowired
-  public QuizManager(QuizService quizService) {
+  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot) {
     this.quizService = quizService;
+    this.quizBot = quizBot;
   }
 
-  public SendMessage getQuestionMessage(Long chatId) {
+  public SendPoll startQuiz(Long userId) {
+    currentQuestionId = 1L; // Testni boshlash
+    correctAnswersCount = 0;
+    wrongAnswersCount = 0;
 
-    try{
-      var question = quizService.getQuestionById(currentQuestionId);
-      var message = createMessage(chatId,currentQuestionId.toString() +". "+  question.getQuestionText());
-      var keyboard = createKeyboard(question.getOptions());
-      message.setReplyMarkup(keyboard);
-      return message;
-    } catch (Exception e) {
-      return createStatisticsMessage(chatId);
-    }
-
+    return getQuestionMessage(userId);
   }
 
-  public EditMessageText handleAnswer(Long chatId, Integer messageId, Long optionId) {
-    // Joriy savolni olish
-    var question = quizService.getQuestionById(currentQuestionId);
-    var options = question.getOptions();
-
-    // Tanlangan variantni belgilash
-    boolean isCorrect = quizService.isOptionCorrect(optionId);
-
-    if (isCorrect) {
-      correctAnswersCount++; // To'g'ri javoblar sonini oshiramiz
-    } else {
-      wrongAnswersCount++; // Noto'g'ri javoblar sonini oshiramiz
-    }
-
-    // Yangilangan tugmalar
-    var updatedKeyboard = new InlineKeyboardMarkup();
-    var rows = options.stream()
-        .map(option -> {
-          var button = new InlineKeyboardButton();
-
-          if (option.getId().equals(optionId)) {
-            // Tanlangan variant
-            button.setText((isCorrect ? "✅ " : "❌ ") + option.getOptionText());
-          } else if (option.isCorrect()) {
-            // To'g'ri javob (agar boshqa variant tanlangan bo'lsa)
-            button.setText("✅ " + option.getOptionText());
-          } else {
-            // Boshqa variantlar
-            button.setText(option.getOptionText());
-          }
-
-          button.setCallbackData("option_" + option.getId());
-          return List.of(button);
-        })
-        .toList();
-
-    updatedKeyboard.setKeyboard(rows);
-
-    // Xabar matnini va tugmalarni yangilash
-    var message = new EditMessageText();
-    message.setChatId(chatId.toString());
-    message.setMessageId(messageId);
-    message.setText(currentQuestionId.toString() +". "+  question.getQuestionText()); // Savol matni o'zgarmaydi
-    message.setReplyMarkup(updatedKeyboard);
-
-    currentQuestionId++; // Keyingi savolga o'tish
-
+  public SendMessage exitBot(Long userId) {
+    SendMessage message = new SendMessage();
+    message.setChatId(userId.toString());
+    message.setText("👋 Botdan chiqdingiz. Qaytadan boshlash uchun /start ni yuboring.");
     return message;
   }
 
-  private SendMessage createStatisticsMessage(Long chatId) {
-    long totalQuestions = currentQuestionId - 1; // Umumiy savollar soni
+  public SendPoll getQuestionMessage(Long chatId) {
+    QuestionResponseDto question = quizService.getQuestionById(currentQuestionId);
+
+    SendPoll poll = new SendPoll();
+    poll.setChatId(chatId.toString());
+    poll.setQuestion(currentQuestionId + ". " + question.getQuestionText());
+
+    List<String> options = question.getOptions().stream()
+        .map(option -> trimOptionText(option.getOptionText())) // ⚡ Uzun variantlarni qisqartirish
+        .toList();
+
+    poll.setOptions(options);
+    poll.setType("quiz");
+    poll.setCorrectOptionId(findCorrectOptionIndex(question));
+    poll.setIsAnonymous(false);
+
+    return poll;
+  }
+
+  public void processPollAnswer(Long userId, Integer selectedOption) {
+    QuestionResponseDto question = quizService.getQuestionById(currentQuestionId);
+    boolean isCorrect = selectedOption.equals(findCorrectOptionIndex(question));
+
+    if (isCorrect) {
+      correctAnswersCount++;
+    } else {
+      wrongAnswersCount++;
+    }
+
+    currentQuestionId++;
+
+    try {
+      if (quizService.hasNextQuestion(currentQuestionId)) {
+        quizBot.execute(getQuestionMessage(userId)); // ✅ execute() ni QuizBot orqali chaqiramiz
+      } else {
+        quizBot.execute(sendStatistics(userId)); // ✅ execute() ni QuizBot orqali chaqiramiz
+      }
+    } catch (TelegramApiException e) {
+      log.error("Xatolik yuz berdi: {}", e.getMessage());
+    }
+  }
+
+  private int findCorrectOptionIndex(QuestionResponseDto question) {
+    List<OptionResponseDto> options = question.getOptions();
+    for (int i = 0; i < options.size(); i++) {
+      if (options.get(i).isCorrect()) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private String trimOptionText(String option) {
+    return option.length() > 100 ? option.substring(0, 97) + "..." : option;
+  }
+
+  public SendMessage createMessage(Long chatId, String text) {
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId.toString());
+    message.setText(text);
+    return message;
+  }
+
+  public SendMessage sendStatistics(Long userId) {
+    long totalQuestions = correctAnswersCount + wrongAnswersCount;
     double correctPercentage = (double) correctAnswersCount / totalQuestions * 100;
 
-    String statisticsMessage = String.format(
-        "📊 *Statistika:*\n" +
-        "• Umumiy savollar: %d\n" +
-        "• To'g'ri javoblar: %d (%.2f%%)\n" +
-        "• Noto'g'ri javoblar: %d",
+    String statsMessage = String.format(
+        "📊 *Statistika:*\n\n" +
+        "• 📌 Umumiy savollar: %d\n" +
+        "• ✅ To'g'ri javoblar: %d (%.2f%%)\n" +
+        "• ❌ Noto'g'ri javoblar: %d",
         totalQuestions,
         correctAnswersCount,
         correctPercentage,
         wrongAnswersCount
     );
 
-    var message = new SendMessage();
-    message.setChatId(chatId.toString());
-    message.setText(statisticsMessage);
-    message.setParseMode("Markdown"); // Markdown formati orqali bold text kiritish
+    SendMessage message = new SendMessage();
+    message.setChatId(userId.toString());
+    message.setText(statsMessage);
+    message.setParseMode("Markdown");
+
     return message;
   }
 
-  private InlineKeyboardMarkup createKeyboard(List<OptionResponseDto> options) {
-    var markup = new InlineKeyboardMarkup();
-    var rows = options.stream()
-        .map(option -> {
-          var button = new InlineKeyboardButton(option.getOptionText());
-          button.setCallbackData("option_" + option.getId());
-          return List.of(button);
-        })
-        .toList();
+  public SendMessage sendQuestionFormatInfo(Long chatId) {
+    String infoMessage = """
+        📌 *Savollarni to‘g‘ri formatda yozish bo‘yicha qo‘llanma:*
 
-    markup.setKeyboard(rows);
-    return markup;
-  }
+        ✅ *Savollar* quyidagi belgilardan biri bilan tugashi kerak:
+        - `?` (Savol belgisidan foydalanish shart)
+        - `:` (Ikki nuqta)
+        - `...` (Uch nuqta)
+        - `!` (Undov belgisi)
+        - `__` (Pasti chiziqchalar savol matni orasida qatnashishi mumkin)
 
-  private SendMessage createMessage(Long chatId, String text) {
-    var message = new SendMessage();
-    message.setChatId(chatId.toString());
-    message.setText(text);
+        ❌ *Noto‘g‘ri yozilgan savollar* variant sifatida qabul qilinishi mumkin.
+
+        📝 *Misol:*
+        ❌ Noto‘g‘ri: `Dunyodagi eng kichik qush`
+        ✅ To‘g‘ri: `Dunyodagi eng kichik qush?`
+        ✅ To‘g‘ri: `Dunyodagi eng kichik qush:`
+        ✅ To‘g‘ri: `Dunyodagi eng kichik qush...`
+        ✅ To‘g‘ri: `Dunyodagi eng kichik qush!`
+        ✅ To‘g‘ri: `Dunyodagi eng ____ qush`
+        
+        *📢 Iltimos, savollaringizni to‘g‘ri shaklda yozing!*
+        """;
+
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId);
+    message.setText(infoMessage);
+    message.setParseMode("Markdown");
+
     return message;
   }
+
 }

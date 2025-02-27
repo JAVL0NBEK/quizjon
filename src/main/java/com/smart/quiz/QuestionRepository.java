@@ -13,4 +13,6 @@ public interface QuestionRepository extends JpaRepository<QuestionsEntity, Long>
 
   @Query("SELECT o FROM OptionsEntity o WHERE o.id = :optionId")
   Optional<OptionsEntity> findOptionById(@Param("optionId") Long optionId);
+
+  boolean existsById(Long id);
 }
