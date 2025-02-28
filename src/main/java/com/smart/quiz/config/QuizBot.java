@@ -4,11 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
+import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.polls.PollAnswer;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -31,16 +29,29 @@ public class QuizBot extends TelegramLongPollingBot {
         handleCommand(update.getMessage().getChatId(), update.getMessage().getText());
       } else if (update.hasPollAnswer()) {
         handlePollAnswer(update.getPollAnswer());
+      } else if (update.hasCallbackQuery()) {
+        handleCallbackQuery(update.getCallbackQuery());
       }
     } catch (Exception e) {
       logError(e);
     }
   }
 
+  // Inline knopka tanlovini qayta ishlash
+  private void handleCallbackQuery(CallbackQuery callbackQuery) throws TelegramApiException {
+    Long userId = callbackQuery.getFrom().getId();
+    String callbackData = callbackQuery.getData();
+    quizManager.processCallbackQuery(userId, callbackData);
+
+    // Callback query ga javob yuborish (majburiy emas, lekin UX uchun yaxshi)
+    AnswerCallbackQuery answer = new AnswerCallbackQuery();
+    answer.setCallbackQueryId(callbackQuery.getId());
+    execute(answer);
+  }
+
   // ✅ Buyruqlarni switch-case orqali boshqarish
   private void handleCommand(Long chatId, String command) throws TelegramApiException {
     SendMessage message;
-
     switch (command.toLowerCase()) {
       case "/start":
         execute(quizManager.sendQuestionFormatInfo(chatId));
