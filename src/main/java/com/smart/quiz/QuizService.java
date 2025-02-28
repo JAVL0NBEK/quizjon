@@ -22,4 +22,6 @@ public interface QuizService {
   boolean hasNextQuestion(Long questionId);
 
   void update(Long id, QuestionsEntity requestDto);
+
+  List<Long> getAllQuestionIds();
 }

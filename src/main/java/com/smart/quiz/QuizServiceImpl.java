@@ -156,6 +156,11 @@ public class QuizServiceImpl implements QuizService {
     questionRepository.save(entity);
   }
 
+  @Override
+  public List<Long> getAllQuestionIds() {
+    return questionRepository.findAll().stream().map(QuestionsEntity::getId).toList();
+  }
+
   private QuestionsEntity findOrFail(Long id) {
     return questionRepository.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("question.id",
