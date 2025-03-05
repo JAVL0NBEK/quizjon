@@ -2,7 +2,6 @@ package com.smart.quiz;
 
 import com.smart.quiz.dto.SubjectEntity;
 import com.smart.quiz.dto.SubjectRequestDto;
-import org.mapstruct.Mapping;
 import static org.mapstruct.ap.internal.gem.MappingConstantsGem.ComponentModelGem.SPRING;
 
 import com.smart.quiz.dto.OptionResponseDto;
