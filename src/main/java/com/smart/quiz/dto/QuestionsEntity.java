@@ -7,6 +7,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.util.List;
@@ -28,6 +29,10 @@ public class QuestionsEntity {
   private Long id;
 
   private String questionText;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "subject_id", nullable = false)
+  private SubjectEntity subject;
 
   @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
   @JoinColumn(name = "question_id")

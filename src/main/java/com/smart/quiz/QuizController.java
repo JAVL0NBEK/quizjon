@@ -2,10 +2,13 @@ package com.smart.quiz;
 
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
+import com.smart.quiz.dto.SubjectEntity;
+import com.smart.quiz.dto.SubjectRequestDto;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,6 +18,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class QuizController implements QuizApi {
 
   private final QuizService quizService;
+
+  @Override
+  public ResponseEntity<SubjectEntity> addSubject(SubjectRequestDto subject) {
+    return ResponseEntity.ok(quizService.addSubject(subject));
+  }
 
   @Override
   public ResponseEntity<List<QuestionsEntity>> getAllQuestions() {
@@ -32,10 +40,10 @@ public class QuizController implements QuizApi {
   }
 
   @Override
-  public ResponseEntity<String> uploadFile(MultipartFile file) {
+  public ResponseEntity<String> uploadFile(MultipartFile file, String subject, String subDesc) {
     try {
       // Faylni qabul qilish va AI orqali ishlash
-      quizService.processFile(file);
+      quizService.processFile(file, subject, subDesc);
       return ResponseEntity.ok("Fayl muvaffaqiyatli yuklandi va savollar bazaga saqlandi!");
     } catch (Exception e) {
       return ResponseEntity.badRequest().body("Xatolik: " + e.getMessage());
