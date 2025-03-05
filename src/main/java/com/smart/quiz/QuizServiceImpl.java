@@ -4,12 +4,16 @@ import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.OptionsEntity;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
+import com.smart.quiz.dto.SubjectEntity;
+import com.smart.quiz.dto.SubjectRequestDto;
 import com.smart.quiz.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -24,11 +28,13 @@ public class QuizServiceImpl implements QuizService {
 
   private final QuestionRepository questionRepository;
   private final QuizMapper quizMapper;
+  private final SubjectRepository subjectRepository;
 
   @Override
   public List<QuestionsEntity> getAllQuestions() {
     return questionRepository.findAll();
   }
+
   @Transactional
   @Override
   public QuestionResponseDto getQuestionById(Long id) {
@@ -59,7 +65,7 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public void processFile(MultipartFile file) throws RuntimeException {
+  public void processFile(MultipartFile file, String subject, String subDesc) throws RuntimeException {
     List<QuestionResponseDto> questions = null;
     try {
       questions = readQuestionsFromDocx(file);
@@ -67,7 +73,7 @@ public class QuizServiceImpl implements QuizService {
       throw new RuntimeException("Faylni o'qishda xatolik yuz berdi.", e);
     }
     // Savollarni bazaga saqlash
-    saveQuestionsToDatabase(questions);
+    saveQuestionsToDatabase(questions, subject, subDesc);
   }
 
   private List<QuestionResponseDto> readQuestionsFromDocx(MultipartFile file) throws IOException {
@@ -109,10 +115,10 @@ public class QuizServiceImpl implements QuizService {
         currentQuestion.setQuestionText(line.trim());
         currentQuestion.setOptions(new ArrayList<>());
 
-      } else if (currentQuestion != null) { // Noto‘g‘ri javob
+      } else if (currentQuestion != null) {
         OptionResponseDto option = new OptionResponseDto();
-        option.setOptionText(line);
-        option.setCorrect(true);
+        option.setOptionText(line.startsWith("#") ? line.substring(1) : line);
+        option.setCorrect(line.startsWith("#"));
         currentQuestion.getOptions().add(option);
       }
     }
@@ -125,23 +131,35 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public void saveQuestionsToDatabase(List<QuestionResponseDto> questions) {
+  public void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc) {
+    var subjectEntity = new SubjectEntity();
+    subjectEntity.setSubjectName(subject);
+    subjectEntity.setDescription(subDesc);
+    var subjectResponse = subjectRepository.save(subjectEntity);
     for (QuestionResponseDto questionDto : questions) {
       var questionEntity = new QuestionsEntity();
-      questionEntity.setQuestionText(questionDto.getQuestionText());
 
-      var options = questionDto.getOptions().stream()
+      questionEntity.setQuestionText(questionDto.getQuestionText());
+      questionEntity.setSubject(subjectResponse);
+
+      // Variantlarni yaratish va mutable ro‘yxatga yig‘ish
+      List<OptionResponseDto> options = questionDto.getOptions().stream()
           .map(optionDto -> {
             var option = new OptionResponseDto();
             option.setOptionText(optionDto.getOptionText());
             option.setCorrect(optionDto.isCorrect());
             return option;
           })
-          .toList();
+          .collect(Collectors.toList()); // Mutable List yaratish
+
+      // Variantlarni aralashtirish
+      Collections.shuffle(options);
 
       questionEntity.setOptions(quizMapper.toEntity(options));
       questionRepository.save(questionEntity);
     }
+
+
   }
 
   @Override
@@ -159,6 +177,28 @@ public class QuizServiceImpl implements QuizService {
   @Override
   public List<Long> getAllQuestionIds() {
     return questionRepository.findAll().stream().map(QuestionsEntity::getId).toList();
+  }
+
+  @Override
+  public SubjectEntity addSubject(SubjectRequestDto subject) {
+    return subjectRepository.save(quizMapper.toSubjectEntity(subject));
+  }
+
+  @Override
+  public List<SubjectEntity> getAllSubjects() {
+    return subjectRepository.findAll();
+  }
+
+  @Override
+  public SubjectEntity getSubjectById(Long id) {
+    return subjectRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("subjects.id",
+        List.of(id.toString())));
+  }
+
+  @Override
+  public List<QuestionsEntity> getQuestionsBySubjectId(Long subjectId) {
+    return questionRepository.findSubjectById(subjectId).orElseThrow(()-> new ResourceNotFoundException("subjects.id",
+        List.of(subjectId.toString())));
   }
 
   private QuestionsEntity findOrFail(Long id) {

@@ -2,6 +2,8 @@ package com.smart.quiz;
 
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
+import com.smart.quiz.dto.SubjectEntity;
+import com.smart.quiz.dto.SubjectRequestDto;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.MediaType;
@@ -19,6 +21,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("v1/quiz")
 public interface QuizApi {
 
+  @PostMapping("/add-subject")
+  ResponseEntity<SubjectEntity> addSubject(
+      @RequestBody SubjectRequestDto subject
+  );
+
   @GetMapping("/all")
   ResponseEntity<List<QuestionsEntity>> getAllQuestions();
 
@@ -35,7 +42,7 @@ public interface QuizApi {
   @PostMapping(value = "/upload-document",
       produces = MediaType.APPLICATION_JSON_VALUE,
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  ResponseEntity<String> uploadFile(@RequestPart("file") MultipartFile file);
+  ResponseEntity<String> uploadFile(@RequestPart("file") MultipartFile file, @RequestParam String subject, @RequestParam String subDesc);
 
   @PutMapping("/{id}")
   ResponseEntity<Void> update(@PathVariable Long id, @Valid @RequestBody QuestionsEntity requestDto);

@@ -62,12 +62,21 @@ public class QuizBot extends TelegramLongPollingBot {
       case "/quiz":
         execute(quizManager.startQuiz(chatId));
         break;
+      case "/share":  // Umumiy ulashish uchun qoldirilishi mumkin
+        execute(quizManager.shareBot(chatId));
+        break;
       case "/exit":
         execute(quizManager.exitBot(chatId));
         break;
       default:
-        message = quizManager.createMessage(chatId, "❌ Noto‘g‘ri buyruq. Iltimos, /start dan foydalaning.");
-        execute(message);
+        // Deep linkni qayta ishlash
+        if (command.startsWith("/start ")) {
+          String param = command.substring(7).trim();
+          execute(quizManager.handleInvite(chatId, param));
+        } else {
+          message = quizManager.createMessage(chatId, "❌ Noto‘g‘ri buyruq. /start dan foydalaning.");
+          execute(message);
+        }
     }
   }
 
@@ -83,6 +92,6 @@ public class QuizBot extends TelegramLongPollingBot {
 
   @Override
   public String getBotUsername() {
-    return "Test"; // Bot nomi
+    return "quizjon_bot"; // Bot nomi
   }
 }

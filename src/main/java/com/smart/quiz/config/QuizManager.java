@@ -3,7 +3,9 @@ package com.smart.quiz.config;
 import com.smart.quiz.QuizService;
 import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.QuestionResponseDto;
+import com.smart.quiz.dto.QuestionsEntity;
 import com.smart.quiz.dto.QuizState;
+import com.smart.quiz.dto.SubjectEntity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,29 +43,38 @@ public class QuizManager {
   }
 
   // Quizni boshlash: Faol quiz mavjudligini tekshiradi
-  public SendMessage startQuiz(Long userId) {
-    QuizState existingState = userStates.get(userId);
+  public SendMessage startQuiz(Long chatId) {
+    QuizState existingState = userStates.get(chatId);
 
     // Agar foydalanuvchi allaqachon quizda bo‘lsa
     if (existingState != null && existingState.isActive()) {
-      return createMessage(userId, "❌ Siz allaqachon quizdasiz! Avval uni tugating yoki /stop buyrug‘idan foydalaning.");
+      return createMessage(chatId, "❌ Siz allaqachon quizdasiz! Avval uni tugating yoki /stop buyrug‘idan foydalaning.");
     }
 
-    // Yangi holat yaratamiz va bo‘lim tanlashni taklif qilamiz
-    userStates.put(userId, new QuizState());
+    // Yangi holat yaratib, fanlarni ko‘rsatamiz
+    userStates.put(chatId, new QuizState());
+    return showSubjects(chatId);
+  }
+
+  // Fanlar ro‘yxatini ko‘rsatish
+  private SendMessage showSubjects(Long chatId) {
     SendMessage message = new SendMessage();
-    message.setChatId(userId.toString());
-    message.setText("📚 Bo‘limni tanlang:");
+    message.setChatId(chatId.toString());
+    message.setText("📚 Fanlardan birini tanlang:");
 
+    List<SubjectEntity> subjects = quizService.getAllSubjects();
     List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-    List<String> sortedSections = new ArrayList<>(sections.keySet());
-    Collections.sort(sortedSections);
 
-    for (String section : sortedSections) {
-      InlineKeyboardButton button = new InlineKeyboardButton();
-      button.setText(section);
-      button.setCallbackData("section_" + section);
-      keyboard.add(List.of(button));
+    for (SubjectEntity subject : subjects) {
+      InlineKeyboardButton selectButton = new InlineKeyboardButton();
+      selectButton.setText(subject.getSubjectName());
+      selectButton.setCallbackData("subject_" + subject.getId());
+
+      InlineKeyboardButton shareButton = new InlineKeyboardButton();
+      shareButton.setText("📤 Ulashish");
+      shareButton.setCallbackData("share_subject_" + subject.getId());
+
+      keyboard.add(List.of(selectButton, shareButton));
     }
 
     InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
@@ -89,26 +100,109 @@ public class QuizManager {
   public void processCallbackQuery(Long userId, String callbackData) throws TelegramApiException {
     QuizState state = userStates.get(userId);
 
-    // Agar foydalanuvchi quizda bo‘lsa va yangi bo‘lim tanlamoqchi bo‘lsa
-    if (state != null && state.isActive()) {
-      quizBot.execute(createMessage(userId, "❌ Siz allaqachon quizdasiz! Avval uni tugating yoki /stop buyrug‘idan foydalaning."));
+    if (state != null && state.isActive() && state.getCurrentSection() != null) {
+      quizBot.execute(createMessage(userId, "❌ Siz allaqachon quizdasiz! Avval tugating yoki /stop buyrug‘idan foydalaning."));
       return;
     }
 
-    if (callbackData.startsWith("section_")) {
+    // Fanni tanlash
+    if (callbackData.startsWith("subject_")) {
+      Long subjectId = Long.parseLong(callbackData.replace("subject_", ""));
+      startSubjectQuiz(userId, subjectId);
+    }
+    // Fanni ulashish
+    else if (callbackData.startsWith("share_subject_")) {
+      Long subjectId = Long.parseLong(callbackData.replace("share_subject_", ""));
+      quizBot.execute(shareSubject(userId, subjectId));
+    }
+    // Bo‘limni tanlash
+    else if (callbackData.startsWith("section_")) {
       String selectedSection = callbackData.replace("section_", "");
-      if (sections.containsKey(selectedSection)) {
-        state = userStates.get(userId);
+      if (state.getSections().containsKey(selectedSection)) {
         state.setCurrentSection(selectedSection);
         state.setCurrentQuestionIndex(0);
         state.setCorrectAnswersCount(0);
         state.setWrongAnswersCount(0);
-        state.setActive(true); // Quiz faol holatga o‘tadi
+        state.setActive(true);
         quizBot.execute(getQuestionMessage(userId));
       } else {
         quizBot.execute(createMessage(userId, "❌ Bunday bo‘lim mavjud emas!"));
       }
     }
+
+  }
+
+  private void startSubjectQuiz(Long userId, Long subjectId) throws TelegramApiException {
+    QuizState state = userStates.get(userId);
+    List<QuestionsEntity> questions = quizService.getQuestionsBySubjectId(subjectId);
+
+    if (questions.isEmpty()) {
+      quizBot.execute(createMessage(userId, "❌ Ushbu fanda savollar mavjud emas!"));
+      return;
+    }
+
+    Map<String, List<Long>> sections = createSections(questions);
+    state.setSections(sections);
+    state.setSubjectId(subjectId);
+    quizBot.execute(showSections(userId));
+  }
+
+  private SendMessage shareSubject(Long userId, Long subjectId) {
+    String botUsername = quizBot.getBotUsername();
+    String shareLink = String.format("https://t.me/%s?start=subject_%d", botUsername, subjectId);
+
+    SubjectEntity subject = quizService.getSubjectById(subjectId); // Fan nomini olish uchun
+    String shareMessage = String.format("""
+            📢 Do‘stlaringizni %s fanidan quizga taklif qiling!
+            Quyidagi havolani ularga yuboring:
+            %s
+            
+            Ular ham ushbu testni sinab ko‘rishlari mumkin!
+            """, subject.getSubjectName(), shareLink);
+
+    return createMessage(userId, shareMessage);
+  }
+
+  // Savollarni bo‘limlarga bo‘lish
+  private Map<String, List<Long>> createSections(List<QuestionsEntity> questions) {
+    Map<String, List<Long>> sections = new HashMap<>();
+    int sectionSize = 30; // Har bir bo‘limda 30 ta savol
+    int sectionCount = (int) Math.ceil((double) questions.size() / sectionSize);
+
+    for (int i = 0; i < sectionCount; i++) {
+      int start = i * sectionSize;
+      int end = Math.min(start + sectionSize, questions.size());
+      List<Long> questionIds = questions.subList(start, end).stream()
+          .map(QuestionsEntity::getId)
+          .toList();
+      sections.put("Bo‘lim " + (i + 1), questionIds);
+    }
+    return sections;
+  }
+
+  // Tanlangan fan bo‘yicha bo‘limlarni ko‘rsatish
+  private SendMessage showSections(Long userId) {
+    QuizState state = userStates.get(userId);
+    SendMessage message = new SendMessage();
+    message.setChatId(userId.toString());
+    message.setText("📚 Bo‘limni tanlang:");
+
+    List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+    List<String> sortedSections = new ArrayList<>(state.getSections().keySet());
+    Collections.sort(sortedSections);
+
+    for (String section : sortedSections) {
+      InlineKeyboardButton button = new InlineKeyboardButton();
+      button.setText(section);
+      button.setCallbackData("section_" + section);
+      keyboard.add(List.of(button));
+    }
+
+    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+    markup.setKeyboard(keyboard);
+    message.setReplyMarkup(markup);
+
+    return message;
   }
 
   public SendMessage exitBot(Long userId) {
@@ -121,7 +215,7 @@ public class QuizManager {
 
   public SendPoll getQuestionMessage(Long userId) {
     QuizState state = userStates.get(userId);
-    List<Long> sectionQuestions = sections.get(state.getCurrentSection());
+    List<Long> sectionQuestions = state.getSections().get(state.getCurrentSection());
     Long currentQuestionId = sectionQuestions.get(state.getCurrentQuestionIndex());
 
     QuestionResponseDto question = quizService.getQuestionById(currentQuestionId);
@@ -129,12 +223,9 @@ public class QuizManager {
     SendPoll poll = new SendPoll();
     poll.setChatId(userId.toString());
     poll.setQuestion((state.getCurrentQuestionIndex() + 1) + ". " + question.getQuestionText());
-
-    List<String> options = question.getOptions().stream()
+    poll.setOptions(question.getOptions().stream()
         .map(option -> trimOptionText(option.getOptionText()))
-        .toList();
-
-    poll.setOptions(options);
+        .toList());
     poll.setType("quiz");
     poll.setCorrectOptionId(findCorrectOptionIndex(question));
     poll.setIsAnonymous(false);
@@ -144,7 +235,7 @@ public class QuizManager {
 
   public void processPollAnswer(Long userId, Integer selectedOption) {
     QuizState state = userStates.get(userId);
-    List<Long> sectionQuestions = sections.get(state.getCurrentSection());
+    List<Long> sectionQuestions = state.getSections().get(state.getCurrentSection());
     Long currentQuestionId = sectionQuestions.get(state.getCurrentQuestionIndex());
 
     QuestionResponseDto question = quizService.getQuestionById(currentQuestionId);
@@ -164,7 +255,7 @@ public class QuizManager {
       } else {
         quizBot.execute(sendStatistics(userId));
         state.setActive(false); // Quiz tugadi
-        userStates.remove(userId); // Holatni tozalash
+        userStates.remove(userId); // Holatni o‘chirish
       }
     } catch (TelegramApiException e) {
       log.error("Xatolik yuz berdi: {}", e.getMessage());
@@ -253,6 +344,42 @@ public class QuizManager {
     message.setParseMode("Markdown");
 
     return message;
+  }
+
+  // Botni ulashish uchun havola yaratish
+  public SendMessage shareBot(Long chatId) {
+    String botUsername = quizBot.getBotUsername(); // Bot nomini dinamik olish
+    String shareLink = String.format("https://t.me/%s?start=%d", botUsername, chatId);
+
+    String shareMessage = """
+        📢 Do‘stlaringizni quizga taklif qiling!
+        Quyidagi havolani ularga yuboring:
+        %s
+        
+        Ular ham sizning testingizni sinab ko‘rishlari mumkin!
+        """.formatted(shareLink);
+
+    return createMessage(chatId, shareMessage);
+  }
+
+  // Deep link orqali kelgan taklifni qayta ishlash
+  public SendMessage handleInvite(Long chatId, String param) {
+    if (param.startsWith("subject_")) {
+      try {
+        Long subjectId = Long.parseLong(param.replace("subject_", ""));
+        SubjectEntity subject = quizService.getSubjectById(subjectId);
+        if (subject == null) {
+          return createMessage(chatId, "❌ Bunday fan mavjud emas!");
+        }
+
+        userStates.put(chatId, new QuizState());
+        startSubjectQuiz(chatId, subjectId);
+        return createMessage(chatId, String.format("👋 %s fanidan quizga xush kelibsiz! Bo‘limni tanlang.", subject.getSubjectName()));
+      } catch (NumberFormatException | TelegramApiException e) {
+        return createMessage(chatId, "❌ Taklif havolasi noto‘g‘ri!");
+      }
+    }
+    return createMessage(chatId, "❌ Noto‘g‘ri taklif havolasi!");
   }
 
 }

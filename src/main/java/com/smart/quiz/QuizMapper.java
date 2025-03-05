@@ -1,5 +1,7 @@
 package com.smart.quiz;
 
+import com.smart.quiz.dto.SubjectEntity;
+import com.smart.quiz.dto.SubjectRequestDto;
 import static org.mapstruct.ap.internal.gem.MappingConstantsGem.ComponentModelGem.SPRING;
 
 import com.smart.quiz.dto.OptionResponseDto;
@@ -11,4 +13,6 @@ import org.mapstruct.Mapper;
 public interface QuizMapper {
 
   List<OptionsEntity> toEntity(List<OptionResponseDto> request);
+
+  SubjectEntity toSubjectEntity(SubjectRequestDto subjectRequestDto);
 }
