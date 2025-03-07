@@ -105,14 +105,14 @@ public class QuizServiceImpl implements QuizService {
       if (line.isEmpty()) {
         continue;
       }
-
-      if (line.endsWith("?") || line.endsWith(":") || line.endsWith("...")  || line.startsWith("...")
-          || line.contains("__") || line.endsWith("!")) { // Savolni ajratib olish
+//line.endsWith("?") || line.endsWith(":") || line.endsWith("...")  || line.startsWith("...")
+//          || line.contains("__") || line.endsWith("!")
+      if (line.startsWith("$")) { // Savolni ajratib olish
         if (currentQuestion != null) {
           questions.add(currentQuestion);
         }
         currentQuestion = new QuestionResponseDto();
-        currentQuestion.setQuestionText(line.trim());
+        currentQuestion.setQuestionText(line.substring(1).trim());
         currentQuestion.setOptions(new ArrayList<>());
 
       } else if (currentQuestion != null) {
