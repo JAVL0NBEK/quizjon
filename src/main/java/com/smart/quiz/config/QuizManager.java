@@ -1,6 +1,7 @@
 package com.smart.quiz.config;
 
 import com.smart.quiz.QuizService;
+import com.smart.quiz.UsersRepository;
 import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
@@ -32,11 +33,11 @@ public class QuizManager {
   // Har bir foydalanuvchi uchun holatni saqlash uchun Map
   private final Map<Long, QuizState> userStates = new ConcurrentHashMap<>();
 
-  // Bo‘limlar ro‘yxati (masalan, har birida 30 ta savol)
+  // Bo‘limlar ro‘yxati (masalan, har birida 50 ta savol)
   private final Map<String, List<Long>> sections = new HashMap<>();
 
   @Autowired
-  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot) {
+  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot, UsersRepository usersRepository) {
     this.quizService = quizService;
     this.quizBot = quizBot;
     initializeSections(); // Bo‘limlarni boshlang‘ich holatda yuklash
@@ -62,7 +63,7 @@ public class QuizManager {
     message.setChatId(chatId.toString());
     message.setText("📚 Fanlardan birini tanlang:");
 
-    List<SubjectEntity> subjects = quizService.getAllSubjects();
+    List<SubjectEntity> subjects = quizService.getAllSubjects(chatId);
     List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
 
     for (SubjectEntity subject : subjects) {
@@ -86,7 +87,7 @@ public class QuizManager {
 
   private void initializeSections() {
     List<Long> allQuestionIds = quizService.getAllQuestionIds();
-    int sectionSize = 30;
+    int sectionSize = 50;
     int sectionCount = (int) Math.ceil((double) allQuestionIds.size() / sectionSize);
 
     for (int i = 0; i < sectionCount; i++) {
@@ -166,7 +167,7 @@ public class QuizManager {
   // Savollarni bo‘limlarga bo‘lish
   private Map<String, List<Long>> createSections(List<QuestionsEntity> questions) {
     Map<String, List<Long>> sections = new HashMap<>();
-    int sectionSize = 30; // Har bir bo‘limda 30 ta savol
+    int sectionSize = 50; // Har bir bo‘limda 50 ta savol
     int sectionCount = (int) Math.ceil((double) questions.size() / sectionSize);
 
     for (int i = 0; i < sectionCount; i++) {
@@ -308,8 +309,8 @@ public class QuizManager {
       );
       message.setText(statsMessage);
       state.setActive(false); // Statistika ko‘rsatilgandan keyin quiz faol emas
+      userStates.remove(userId);
     }
-
     message.setParseMode("Markdown");
     return message;
   }
@@ -368,6 +369,8 @@ public class QuizManager {
       try {
         Long subjectId = Long.parseLong(param.replace("subject_", ""));
         SubjectEntity subject = quizService.getSubjectById(subjectId);
+        quizService.addUserIfNotExists(subjectId, chatId);
+
         if (subject == null) {
           return createMessage(chatId, "❌ Bunday fan mavjud emas!");
         }

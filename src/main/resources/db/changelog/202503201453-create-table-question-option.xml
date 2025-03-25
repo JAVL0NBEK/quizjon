@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+  <changeSet id="202503201453-1" author="j_sobirov">
+
+    <createTable tableName="questions">
+        <column autoIncrement="true" name="id" type="BIGINT">
+            <constraints nullable="false" primaryKey="true" primaryKeyName="pk_questions"/>
+        </column>
+        <column name="question_text" type="VARCHAR(255)"/>
+        <column name="subject_id" type="BIGINT">
+            <constraints nullable="false"/>
+        </column>
+    </createTable>
+    <addForeignKeyConstraint baseColumnNames="subject_id" baseTableName="questions" constraintName="FK_QUESTIONS_ON_SUBJECT" referencedColumnNames="id" referencedTableName="subjects"/>
+
+  </changeSet>
+
+  <changeSet id="202503201453-2" author="j_sobirov">
+
+    <createTable tableName="options">
+        <column autoIncrement="true" name="id" type="BIGINT">
+            <constraints nullable="false" primaryKey="true" primaryKeyName="pk_options"/>
+        </column>
+        <column name="option_text" type="VARCHAR(255)"/>
+        <column name="is_correct" type="BOOLEAN">
+            <constraints nullable="false"/>
+        </column>
+        <column name="question_id" type="BIGINT"/>
+    </createTable>
+    <addForeignKeyConstraint baseColumnNames="question_id" baseTableName="options" constraintName="FK_OPTIONS_ON_QUESTION" referencedColumnNames="id" referencedTableName="questions"/>
+  </changeSet>
+</databaseChangeLog>

@@ -1,11 +1,11 @@
 package com.smart.quiz;
 
 import com.smart.quiz.dto.OptionResponseDto;
-import com.smart.quiz.dto.OptionsEntity;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
 import com.smart.quiz.dto.SubjectEntity;
 import com.smart.quiz.dto.SubjectRequestDto;
+import com.smart.quiz.dto.UserEntity;
 import com.smart.quiz.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
@@ -29,6 +29,8 @@ public class QuizServiceImpl implements QuizService {
   private final QuestionRepository questionRepository;
   private final QuizMapper quizMapper;
   private final SubjectRepository subjectRepository;
+  private final Utils utils;
+  private final UsersRepository usersRepository;
 
   @Override
   public List<QuestionsEntity> getAllQuestions() {
@@ -58,15 +60,8 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public boolean isOptionCorrect(Long optionId) {
-    return questionRepository.findOptionById(optionId)
-        .map(OptionsEntity::isCorrect)
-        .orElse(false);
-  }
-
-  @Override
   public void processFile(MultipartFile file, String subject, String subDesc) throws RuntimeException {
-    List<QuestionResponseDto> questions = null;
+    List<QuestionResponseDto> questions;
     try {
       questions = readQuestionsFromDocx(file);
     } catch (IOException e) {
@@ -105,20 +100,31 @@ public class QuizServiceImpl implements QuizService {
       if (line.isEmpty()) {
         continue;
       }
-//line.endsWith("?") || line.endsWith(":") || line.endsWith("...")  || line.startsWith("...")
-//          || line.contains("__") || line.endsWith("!")
-      if (line.startsWith("$")) { // Savolni ajratib olish
+
+     // Savolni aniqlash shartlarini kengaytiramiz
+
+      if (Boolean.TRUE.equals(utils.isQuestionLine(line))) {
         if (currentQuestion != null) {
           questions.add(currentQuestion);
         }
         currentQuestion = new QuestionResponseDto();
-        currentQuestion.setQuestionText(line.substring(1).trim());
+
+        // Savol matnini tozalash
+        String questionText = line;
+        if (line.startsWith("$")) {
+          questionText = line.substring(1).trim();
+        } else if (line.matches("^\\d+\\..*")) {
+          // Tartib raqamdan keyingi qismni olish
+          questionText = line.replaceFirst("^\\d+\\.\\s*", "").trim();
+        }
+        currentQuestion.setQuestionText(questionText);
         currentQuestion.setOptions(new ArrayList<>());
 
       } else if (currentQuestion != null) {
         OptionResponseDto option = new OptionResponseDto();
         option.setOptionText(line.startsWith("#") ? line.substring(1) : line);
         option.setCorrect(line.startsWith("#"));
+//        option.setCorrect(true);
         currentQuestion.getOptions().add(option);
       }
     }
@@ -163,11 +169,6 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public boolean hasNextQuestion(Long questionId) {
-    return questionRepository.existsById(questionId);
-  }
-
-  @Override
   public void update(Long id, QuestionsEntity requestDto) {
     log.info("Updating question with id:{} ", id);
     var entity = findOrFail(id);
@@ -185,8 +186,8 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public List<SubjectEntity> getAllSubjects() {
-    return subjectRepository.findAll();
+  public List<SubjectEntity> getAllSubjects(Long chatId) {
+    return subjectRepository.findAllByChatId(chatId);
   }
 
   @Override
@@ -199,6 +200,28 @@ public class QuizServiceImpl implements QuizService {
   public List<QuestionsEntity> getQuestionsBySubjectId(Long subjectId) {
     return questionRepository.findSubjectById(subjectId).orElseThrow(()-> new ResourceNotFoundException("subjects.id",
         List.of(subjectId.toString())));
+  }
+
+  @Override
+  public void addUserIfNotExists(Long subjectId, Long chatId) {
+// 1. chatId bo‘yicha foydalanuvchi mavjudligini tekshirish
+    boolean exists = usersRepository.existsByChatId(chatId);
+
+    if (!exists) {
+      // 2. subjectId bo‘yicha SubjectEntity ni olish
+      SubjectEntity subject = subjectRepository.findById(subjectId)
+          .orElseThrow(() -> new RuntimeException("Subject not found"));
+
+      // 3. Yangi foydalanuvchini yaratish
+      UserEntity newUser = new UserEntity();
+      newUser.setChatId(chatId);
+      newUser.setUserName("New User"); // Default qiymat, kerak bo‘lsa o‘zgartirish mumkin
+      newUser.setSubjects(new ArrayList<>());
+      newUser.getSubjects().add(subject); // Many-to-Many bo‘lgani uchun subject qo‘shamiz
+
+      // 4. Yangi foydalanuvchini saqlash
+      usersRepository.save(newUser);
+    }
   }
 
   private QuestionsEntity findOrFail(Long id) {
