@@ -15,13 +15,9 @@ public interface QuizService {
 
   QuestionsEntity addQuestion(QuestionsEntity question);
 
-  boolean isOptionCorrect(Long optionId);
-
   void processFile(MultipartFile file, String subject, String subDesc);
 
   void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc);
-
-  boolean hasNextQuestion(Long questionId);
 
   void update(Long id, QuestionsEntity requestDto);
 
@@ -29,9 +25,11 @@ public interface QuizService {
 
   SubjectEntity addSubject(SubjectRequestDto subjectEntity);
 
-  List<SubjectEntity> getAllSubjects();
+  List<SubjectEntity> getAllSubjects(Long chatId);
 
   SubjectEntity getSubjectById(Long id);
 
   List<QuestionsEntity> getQuestionsBySubjectId(Long subjectId);
+
+  void addUserIfNotExists(Long subjectId, Long chatId);
 }

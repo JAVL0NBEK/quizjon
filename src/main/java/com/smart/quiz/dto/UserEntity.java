@@ -1,10 +1,11 @@
 package com.smart.quiz.dto;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.util.List;
@@ -16,20 +17,24 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "subjects")
+@Table(name = "users")
 @RequiredArgsConstructor
 @AllArgsConstructor
-public class SubjectEntity {
+public class UserEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(name = "subject_name", nullable = false)
-  private String subjectName;
+  private String userName;
 
-  private String description;
+  private Long chatId;
 
-  @ManyToMany(mappedBy = "subjects")
-  private List<UserEntity> users;
+  @ManyToMany
+  @JoinTable(
+      name = "user_subjects",
+      joinColumns = @JoinColumn(name = "user_id"),
+      inverseJoinColumns = @JoinColumn(name = "subject_id")
+  )
+  private List<SubjectEntity> subjects;
 }
