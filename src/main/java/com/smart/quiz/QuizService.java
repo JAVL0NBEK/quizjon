@@ -31,8 +31,6 @@ public interface QuizService {
 
   List<QuestionsEntity> getQuestionsBySubjectId(Long subjectId);
 
-  void addUserIfNotExists(Long subjectId, Long chatId);
-
   SubjectEntity addSubjectAndUser(String subject, String subDesc, Long chatId);
 
 }

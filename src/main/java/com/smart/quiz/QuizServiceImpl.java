@@ -227,28 +227,6 @@ public class QuizServiceImpl implements QuizService {
         List.of(subjectId.toString())));
   }
 
-  @Override
-  public void addUserIfNotExists(Long subjectId, Long chatId) {
-// 1. chatId bo‘yicha foydalanuvchi mavjudligini tekshirish
-    boolean exists = usersRepository.existsByChatId(chatId);
-
-    if (!exists) {
-      // 2. subjectId bo‘yicha SubjectEntity ni olish
-      SubjectEntity subject = subjectRepository.findById(subjectId)
-          .orElseThrow(() -> new RuntimeException("Subject not found"));
-
-      // 3. Yangi foydalanuvchini yaratish
-      UserEntity newUser = new UserEntity();
-      newUser.setChatId(chatId);
-      newUser.setUserName("New User"); // Default qiymat, kerak bo‘lsa o‘zgartirish mumkin
-      newUser.setSubjects(new ArrayList<>());
-      newUser.getSubjects().add(subject); // Many-to-Many bo‘lgani uchun subject qo‘shamiz
-
-      // 4. Yangi foydalanuvchini saqlash
-      usersRepository.save(newUser);
-    }
-  }
-
   private QuestionsEntity findOrFail(Long id) {
     return questionRepository.findById(id)
         .orElseThrow(() -> new ResourceNotFoundException("question.id",
