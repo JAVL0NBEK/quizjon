@@ -60,7 +60,7 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public void processFile(MultipartFile file, String subject, String subDesc) throws RuntimeException {
+  public void processFile(MultipartFile file, String subject, String subDesc,Long chatId) throws RuntimeException {
     List<QuestionResponseDto> questions;
     try {
       questions = readQuestionsFromDocx(file);
@@ -68,7 +68,7 @@ public class QuizServiceImpl implements QuizService {
       throw new RuntimeException("Faylni o'qishda xatolik yuz berdi.", e);
     }
     // Savollarni bazaga saqlash
-    saveQuestionsToDatabase(questions, subject, subDesc);
+    saveQuestionsToDatabase(questions, subject, subDesc, chatId);
   }
 
   private List<QuestionResponseDto> readQuestionsFromDocx(MultipartFile file) throws IOException {
@@ -137,18 +137,16 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc) {
-    var subjectEntity = new SubjectEntity();
-    subjectEntity.setSubjectName(subject);
-    subjectEntity.setDescription(subDesc);
-    var subjectResponse = subjectRepository.save(subjectEntity);
+  public void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc, Long chatId) {
+    var subjectEntity = addSubjectAndUser(subject, subDesc, chatId);
+
+    // 1. Savollarni saqlash
     for (QuestionResponseDto questionDto : questions) {
       var questionEntity = new QuestionsEntity();
-
       questionEntity.setQuestionText(questionDto.getQuestionText());
-      questionEntity.setSubject(subjectResponse);
+      questionEntity.setSubject(subjectEntity);
 
-      // Variantlarni yaratish va mutable ro‘yxatga yig‘ish
+      // 2. Variantlarni yaratish va shuffle qilish
       List<OptionResponseDto> options = questionDto.getOptions().stream()
           .map(optionDto -> {
             var option = new OptionResponseDto();
@@ -156,16 +154,43 @@ public class QuizServiceImpl implements QuizService {
             option.setCorrect(optionDto.isCorrect());
             return option;
           })
-          .collect(Collectors.toList()); // Mutable List yaratish
+          .collect(Collectors.toList());
 
-      // Variantlarni aralashtirish
-      Collections.shuffle(options);
-
+      Collections.shuffle(options); // Variantlarni aralashtirish
       questionEntity.setOptions(quizMapper.toEntity(options));
       questionRepository.save(questionEntity);
     }
 
+  }
 
+  @Override
+  public SubjectEntity addSubjectAndUser(String subject, String subDesc, Long chatId){
+    // 1. Foydalanuvchi chatId bo‘yicha bazadan qidiriladi
+    UserEntity user = usersRepository.findByChatId(chatId)
+        .orElseGet(() -> {
+          // 2. Agar user topilmasa, yangi user yaratamiz
+          UserEntity newUser = new UserEntity();
+          newUser.setUserName("User_" + chatId); // Ismni ixtiyoriy qilib qo'yamiz
+          newUser.setChatId(chatId);
+          return usersRepository.save(newUser); // Yangi userni bazaga saqlaymiz
+        });
+
+    // 3. SubjectEntity yaratish yoki topish
+    SubjectEntity subjectEntity = subjectRepository.findBySubjectName(subject)
+        .orElseGet(() -> {
+          SubjectEntity newSubject = new SubjectEntity();
+          newSubject.setSubjectName(subject);
+          newSubject.setDescription(subDesc);
+          return subjectRepository.save(newSubject);
+        });
+
+    // 4. User va Subject bog‘langanligini tekshiramiz
+    if (!user.getSubjects().contains(subjectEntity)) {
+      user.getSubjects().add(subjectEntity);
+      usersRepository.save(user);
+    }
+
+    return subjectEntity;
   }
 
   @Override

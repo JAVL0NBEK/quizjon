@@ -17,8 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -61,10 +63,17 @@ public class QuizManager {
   private SendMessage showSubjects(Long chatId) {
     SendMessage message = new SendMessage();
     message.setChatId(chatId.toString());
-    message.setText("📚 Fanlardan birini tanlang:");
+
 
     List<SubjectEntity> subjects = quizService.getAllSubjects(chatId);
     List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+
+    if (subjects.isEmpty()){
+      message.setText("📚 Sizda quiz savollar mavjud emas! /create buyrug‘idan foydalaning quydagi "
+                      + "linkda quiz savollarini to`g`ri yaratish bo`yicha namuna ko`rsatilgan");
+    } else {
+      message.setText("📚 Fanlardan birini tanlang:");
+    }
 
     for (SubjectEntity subject : subjects) {
       InlineKeyboardButton selectButton = new InlineKeyboardButton();
@@ -369,11 +378,8 @@ public class QuizManager {
       try {
         Long subjectId = Long.parseLong(param.replace("subject_", ""));
         SubjectEntity subject = quizService.getSubjectById(subjectId);
-        quizService.addUserIfNotExists(subjectId, chatId);
-
-        if (subject == null) {
-          return createMessage(chatId, "❌ Bunday fan mavjud emas!");
-        }
+        //agar user yoki subject topilmasa yaratadi bir biriga ham bog`laydi
+        quizService.addSubjectAndUser(subject.getSubjectName(), subject.getDescription(), chatId);
 
         userStates.put(chatId, new QuizState());
         startSubjectQuiz(chatId, subjectId);
