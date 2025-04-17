@@ -10,6 +10,7 @@ import com.smart.quiz.dto.SubjectEntity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +38,7 @@ public class QuizManager {
   private final Map<String, List<Long>> sections = new HashMap<>();
 
   @Autowired
-  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot, UsersRepository usersRepository) {
+  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot) {
     this.quizService = quizService;
     this.quizBot = quizBot;
     initializeSections(); // Bo‘limlarni boshlang‘ich holatda yuklash
@@ -61,10 +62,17 @@ public class QuizManager {
   private SendMessage showSubjects(Long chatId) {
     SendMessage message = new SendMessage();
     message.setChatId(chatId.toString());
-    message.setText("📚 Fanlardan birini tanlang:");
+
 
     List<SubjectEntity> subjects = quizService.getAllSubjects(chatId);
     List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+
+    if (subjects.isEmpty()){
+      message.setText("📚 Sizda quiz savollar mavjud emas! /create buyrug‘idan foydalaning quydagi "
+                      + "linkda quiz savollarini to`g`ri yaratish bo`yicha namuna ko`rsatilgan");
+    } else {
+      message.setText("📚 Fanlardan birini tanlang:");
+    }
 
     for (SubjectEntity subject : subjects) {
       InlineKeyboardButton selectButton = new InlineKeyboardButton();
@@ -136,6 +144,7 @@ public class QuizManager {
   private void startSubjectQuiz(Long userId, Long subjectId) throws TelegramApiException {
     QuizState state = userStates.get(userId);
     List<QuestionsEntity> questions = quizService.getQuestionsBySubjectId(subjectId);
+    //LinkedHashSet
 
     if (questions.isEmpty()) {
       quizBot.execute(createMessage(userId, "❌ Ushbu fanda savollar mavjud emas!"));
@@ -369,11 +378,8 @@ public class QuizManager {
       try {
         Long subjectId = Long.parseLong(param.replace("subject_", ""));
         SubjectEntity subject = quizService.getSubjectById(subjectId);
-        quizService.addUserIfNotExists(subjectId, chatId);
-
-        if (subject == null) {
-          return createMessage(chatId, "❌ Bunday fan mavjud emas!");
-        }
+        //agar user yoki subject topilmasa yaratadi bir biriga ham bog`laydi
+        quizService.addSubjectAndUser(subject.getSubjectName(), subject.getDescription(), chatId);
 
         userStates.put(chatId, new QuizState());
         startSubjectQuiz(chatId, subjectId);

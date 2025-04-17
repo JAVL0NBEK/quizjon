@@ -42,7 +42,7 @@ public interface QuizApi {
   @PostMapping(value = "/upload-document",
       produces = MediaType.APPLICATION_JSON_VALUE,
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  ResponseEntity<String> uploadFile(@RequestPart("file") MultipartFile file, @RequestParam String subject, @RequestParam String subDesc);
+  ResponseEntity<String> uploadFile(@RequestPart("file") MultipartFile file, @RequestParam String subject, @RequestParam String subDesc, @RequestParam Long chatId);
 
   @PutMapping("/{id}")
   ResponseEntity<Void> update(@PathVariable Long id, @Valid @RequestBody QuestionsEntity requestDto);

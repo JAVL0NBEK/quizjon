@@ -1,12 +1,30 @@
 package com.smart.quiz.config;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smart.quiz.dto.UploadState;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.AnswerCallbackQuery;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
+import org.telegram.telegrambots.meta.api.objects.Document;
+import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.polls.PollAnswer;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -16,6 +34,9 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 public class QuizBot extends TelegramLongPollingBot {
 
   private final QuizManager quizManager;
+  private final Map<Long, UploadState> userStateMap = new HashMap<>();
+  private final RestTemplate restTemplate = new RestTemplate(); // API so‘rov uchun
+
 
   public QuizBot(@Value("${telegram.bot.token}") String botToken, QuizManager quizManager) {
     super(botToken);
@@ -25,34 +46,121 @@ public class QuizBot extends TelegramLongPollingBot {
   @Override
   public void onUpdateReceived(Update update) {
     try {
-      if (update.hasMessage() && update.getMessage().hasText()) {
-        handleCommand(update.getMessage().getChatId(), update.getMessage().getText());
+      if (update.hasMessage()) {
+        Message message = update.getMessage();
+
+        if (message.hasText()) {
+          handleTextMessage(message);
+        } else if (message.hasDocument()) {
+          // Fayl yuborilganda, avval /create buyrug'i yuborilganligini tekshiramiz
+          if (!userStateMap.containsKey(message.getChatId())) {
+            sendMessage(message.getChatId(), "❌ Iltimos, oldin /create buyrug'ini kiriting. ");
+            return;
+          }
+          handleDocumentUpload(message);
+        }
+
       } else if (update.hasPollAnswer()) {
         handlePollAnswer(update.getPollAnswer());
+
       } else if (update.hasCallbackQuery()) {
         handleCallbackQuery(update.getCallbackQuery());
       }
+
     } catch (Exception e) {
       logError(e);
     }
   }
 
-  // Inline knopka tanlovini qayta ishlash
+  // ✅ CallbackQuery qayta ishlash (Inline tugmalar uchun)
   private void handleCallbackQuery(CallbackQuery callbackQuery) throws TelegramApiException {
-    Long userId = callbackQuery.getFrom().getId();
-    String callbackData = callbackQuery.getData();
-    quizManager.processCallbackQuery(userId, callbackData);
+    Long chatId = callbackQuery.getMessage().getChatId();
+    String data = callbackQuery.getData();
+    quizManager.processCallbackQuery(chatId, data);
 
-    // Callback query ga javob yuborish (majburiy emas, lekin UX uchun yaxshi)
+    if ("upload_file".equals(data)) {
+      requestDocumentUpload(chatId);
+    }
+
     AnswerCallbackQuery answer = new AnswerCallbackQuery();
     answer.setCallbackQueryId(callbackQuery.getId());
     execute(answer);
   }
 
-  // ✅ Buyruqlarni switch-case orqali boshqarish
-  private void handleCommand(Long chatId, String command) throws TelegramApiException {
-    SendMessage message;
-    switch (command.toLowerCase()) {
+  // ✅ Foydalanuvchi fayl yuborganida uni qabul qilish
+  private void handleDocumentUpload(Message message) {
+    Long chatId = message.getChatId();
+    Document document = message.getDocument();
+
+    // Qo'shimcha tekshiruv (agar kerak bo'lsa)
+    if (!userStateMap.containsKey(chatId)) {
+      sendMessage(chatId, "❌ Iltimos, avval /create buyrug'ini yuboring.");
+      return;
+    }
+
+    UploadState state = userStateMap.get(chatId);
+    state.setDocument(document);
+
+    // Endi fan nomini so'ra
+    sendMessage(chatId, "✅ Fayl qabul qilindi!\n\nEndi quiz qaysi fan yoki mavzuga tegishli ekanligini kiriting:");
+  }
+
+  // ✅ Foydalanuvchi fan nomini kiritgandan keyin APIga yuborish
+  private void handleSubjectInput(Long chatId, String subjectName) {
+    UploadState state = userStateMap.get(chatId);
+
+    if (state != null && state.getDocument() != null) {
+      state.setSubject(subjectName);
+      sendMessage(chatId, "📤 Fayl, fan nomi va savollar soni qabul qilindi!" +
+                          "\nFayl: " + state.getDocument().getFileName() +
+                          "\nFan: " + state.getSubject() +
+                          "\n✅ Bazaga saqlash uchun yuborilmoqda...");
+
+      sendToApi(state.getDocument(), state.getSubject(), chatId);
+      userStateMap.remove(chatId); // Holatni tozalash
+    } else {
+      sendMessage(chatId, "❌ Oldin fayl yuklang.");
+    }
+  }
+
+  //
+  // ✅ Inline tugma orqali fayl yuklashni so‘rash
+  private void requestDocumentUpload(Long chatId) throws TelegramApiException {
+
+    // Yangi holat yaratish
+    userStateMap.put(chatId, new UploadState());
+
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId);
+    message.setText("📎 Iltimos, quiz savollarini o'z ichiga olgan faylni yuboring (docx formatida).");
+    execute(message);
+  }
+
+
+  private void handlePollAnswer(PollAnswer pollAnswer) {
+    Long userId = pollAnswer.getUser().getId();
+    Integer selectedOption = pollAnswer.getOptionIds().getFirst(); // Foydalanuvchi tanlagan variant
+    quizManager.processPollAnswer(userId, selectedOption);
+  }
+
+  private void sendMessage(Long chatId, String text) {
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId);
+    message.setText(text);
+
+    try {
+      execute(message);
+    } catch (TelegramApiException e) {
+      e.printStackTrace();
+    }
+  }
+
+  // ✅ Foydalanuvchi buyruqlarini qayta ishlash
+  private void handleTextMessage(Message message) throws TelegramApiException {
+    Long chatId = message.getChatId();
+    String text = message.getText();
+
+    switch (text.toLowerCase()) {
       case "/start":
         execute(quizManager.sendQuestionFormatInfo(chatId));
         break;
@@ -62,28 +170,83 @@ public class QuizBot extends TelegramLongPollingBot {
       case "/quiz":
         execute(quizManager.startQuiz(chatId));
         break;
-      case "/share":  // Umumiy ulashish uchun qoldirilishi mumkin
+      case "/share":
         execute(quizManager.shareBot(chatId));
         break;
       case "/exit":
         execute(quizManager.exitBot(chatId));
         break;
+      case "/create":
+        requestDocumentUpload(chatId);
+        break;
       default:
         // Deep linkni qayta ishlash
-        if (command.startsWith("/start ")) {
-          String param = command.substring(7).trim();
+        if (text.toLowerCase().startsWith("/start ")) {
+          String param = text.toLowerCase().substring(7).trim();
           execute(quizManager.handleInvite(chatId, param));
+        }
+        else if (userStateMap.containsKey(chatId)) {
+          UploadState userState = userStateMap.get(chatId);
+
+          if (userState.getSubject() == null) {
+            handleSubjectInput(chatId, text);
+          }
         } else {
-          message = quizManager.createMessage(chatId, "❌ Noto‘g‘ri buyruq. /start dan foydalaning.");
-          execute(message);
+          sendMessage(chatId, "❌ Noto‘g‘ri buyruq. /start dan foydalaning.");
         }
     }
   }
 
-  private void handlePollAnswer(PollAnswer pollAnswer) {
-    Long userId = pollAnswer.getUser().getId();
-    Integer selectedOption = pollAnswer.getOptionIds().getFirst(); // Foydalanuvchi tanlagan variant
-    quizManager.processPollAnswer(userId, selectedOption);
+  // ✅ APIga fayl va fan nomini yuborish
+  private void sendToApi(Document document, String subjectName, Long chatId) {
+    try {
+      String fileUrl = execute(new GetFile(document.getFileId())).getFileUrl(getBotToken());
+      byte[] fileBytes = restTemplate.getForObject(fileUrl, byte[].class);
+
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+      MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+      body.add("file", new ByteArrayResource(fileBytes) {
+        @Override
+        public String getFilename() {
+          return document.getFileName();
+        }
+      });
+      body.add("subject", subjectName);
+      body.add("subDesc", "Test");
+      body.add("chatId", chatId.toString());
+
+      HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+      String apiUrl = "http://172.20.0.92:8080/v1/quiz/upload-document"; // Kompyuteringiz IP manzili
+
+      ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity, String.class);
+
+      sendMessage(chatId, "✅ Server javobi: " + response.getBody());
+    } catch (HttpClientErrorException e) {
+      // API dan qaytgan xatolik uchun
+      String errorMessage = e.getResponseBodyAsString();
+      try {
+        // JSON javobni parse qilish
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode root = mapper.readTree(errorMessage);
+        errorMessage = root.path("message").asText();
+      } catch (Exception ignored) {
+        // Agar JSON parse qilib bo'lmasa, oddiy matn sifatida ko'rsatamiz
+      }
+
+      // Xatolik matnini tozalash
+      errorMessage = errorMessage
+          .replaceAll("\"", "")
+          .replaceAll("Xatolik:", "")
+          .trim();
+
+      sendMessage(chatId, "❌ " + errorMessage);
+    } catch (Exception e) {
+      // Boshqa xatoliklar uchun
+      sendMessage(chatId, "❌ Faylni qayta ishlashda xatolik yuz berdi. Iltimos, fayl formati to'g'riligiga ishonch hosil qiling.");
+      logError(e);
+    }
   }
 
   private void logError(Exception e) {
@@ -94,4 +257,5 @@ public class QuizBot extends TelegramLongPollingBot {
   public String getBotUsername() {
     return "quizjon_bot"; // Bot nomi
   }
+
 }

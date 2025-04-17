@@ -39,11 +39,11 @@ public class QuizController implements QuizApi {
   }
 
   @Override
-  public ResponseEntity<String> uploadFile(MultipartFile file, String subject, String subDesc) {
+  public ResponseEntity<String> uploadFile(MultipartFile file, String subject, String subDesc, Long chatId) {
     try {
       // Faylni qabul qilish va AI orqali ishlash
-      quizService.processFile(file, subject, subDesc);
-      return ResponseEntity.ok("Fayl muvaffaqiyatli yuklandi va savollar bazaga saqlandi!");
+      var response = quizService.processFile(file, subject, subDesc, chatId);
+      return ResponseEntity.ok(response);
     } catch (Exception e) {
       return ResponseEntity.badRequest().body("Xatolik: " + e.getMessage());
     }
