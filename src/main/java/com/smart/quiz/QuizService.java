@@ -15,7 +15,7 @@ public interface QuizService {
 
   QuestionsEntity addQuestion(QuestionsEntity question);
 
-  void processFile(MultipartFile file, String subject, String subDesc, Long chatId);
+  String processFile(MultipartFile file, String subject, String subDesc, Long chatId);
 
   void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc, Long chatId);
 

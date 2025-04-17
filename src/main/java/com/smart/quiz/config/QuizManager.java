@@ -10,6 +10,7 @@ import com.smart.quiz.dto.SubjectEntity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +38,7 @@ public class QuizManager {
   private final Map<String, List<Long>> sections = new HashMap<>();
 
   @Autowired
-  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot, UsersRepository usersRepository) {
+  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot) {
     this.quizService = quizService;
     this.quizBot = quizBot;
     initializeSections(); // Bo‘limlarni boshlang‘ich holatda yuklash
@@ -143,6 +144,7 @@ public class QuizManager {
   private void startSubjectQuiz(Long userId, Long subjectId) throws TelegramApiException {
     QuizState state = userStates.get(userId);
     List<QuestionsEntity> questions = quizService.getQuestionsBySubjectId(subjectId);
+    //LinkedHashSet
 
     if (questions.isEmpty()) {
       quizBot.execute(createMessage(userId, "❌ Ushbu fanda savollar mavjud emas!"));
