@@ -2,6 +2,7 @@ package com.smart.quiz.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smart.quiz.QuizService;
 import com.smart.quiz.dto.UploadState;
 import java.util.HashMap;
 import java.util.Map;
@@ -218,7 +219,7 @@ public class QuizBot extends TelegramLongPollingBot {
       body.add("chatId", chatId.toString());
 
       HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-      String apiUrl = "http://172.20.0.92:8080/v1/quiz/upload-document"; // Kompyuteringiz IP manzili
+      String apiUrl = "http://172.20.0.61:8080/v1/quiz/upload-document"; // Kompyuteringiz IP manzili
 
       ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity, String.class);
 
