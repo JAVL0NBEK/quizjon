@@ -1,7 +1,6 @@
 package com.smart.quiz.config;
 
 import com.smart.quiz.QuizService;
-import com.smart.quiz.UsersRepository;
 import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
@@ -10,7 +9,6 @@ import com.smart.quiz.dto.SubjectEntity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

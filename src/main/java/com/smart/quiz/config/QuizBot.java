@@ -237,8 +237,8 @@ public class QuizBot extends TelegramLongPollingBot {
 
       // Xatolik matnini tozalash
       errorMessage = errorMessage
-          .replaceAll("\"", "")
-          .replaceAll("Xatolik:", "")
+          .replace("\"", "")
+          .replace("Xatolik:", "")
           .trim();
 
       sendMessage(chatId, "❌ " + errorMessage);
