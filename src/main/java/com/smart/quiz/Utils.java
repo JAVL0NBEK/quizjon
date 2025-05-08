@@ -9,13 +9,7 @@ public class Utils {
 
   public Boolean isQuestionLine(String line){
     // Tartib raqam bilan boshlanadigan holat
-    return line.startsWith("$") ||
-           line.endsWith("?") ||
-           line.endsWith(":") ||
-           line.endsWith("...") ||
-           line.startsWith("...") ||
-           line.contains("__") ||
-           line.endsWith("!") ||
-           line.matches("^\\d+\\..*");
+    return line != null &&
+           (line.trim().matches("^\\d+(\\)|\\.|\\s).*") || line.trim().startsWith("$"));
   }
 }

@@ -2,7 +2,6 @@ package com.smart.quiz.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smart.quiz.QuizService;
 import com.smart.quiz.dto.UploadState;
 import java.util.HashMap;
 import java.util.Map;
@@ -140,7 +139,7 @@ public class QuizBot extends TelegramLongPollingBot {
 
   private void handlePollAnswer(PollAnswer pollAnswer) {
     Long userId = pollAnswer.getUser().getId();
-    Integer selectedOption = pollAnswer.getOptionIds().getFirst(); // Foydalanuvchi tanlagan variant
+    Integer selectedOption = pollAnswer.getOptionIds().get(0); // Foydalanuvchi tanlagan variant
     quizManager.processPollAnswer(userId, selectedOption);
   }
 
@@ -219,7 +218,7 @@ public class QuizBot extends TelegramLongPollingBot {
       body.add("chatId", chatId.toString());
 
       HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-      String apiUrl = "http://172.20.0.61:8080/v1/quiz/upload-document"; // Kompyuteringiz IP manzili
+      String apiUrl = "http://109.172.36.54:5000/v1/quiz/upload-document"; // Kompyuteringiz IP manzili
 
       ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity, String.class);
 
@@ -245,7 +244,7 @@ public class QuizBot extends TelegramLongPollingBot {
       sendMessage(chatId, "❌ " + errorMessage);
     } catch (Exception e) {
       // Boshqa xatoliklar uchun
-      sendMessage(chatId, "❌ Faylni qayta ishlashda xatolik yuz berdi. Iltimos, fayl formati to'g'riligiga ishonch hosil qiling.");
+      sendMessage(chatId, e.getMessage());
       logError(e);
     }
   }

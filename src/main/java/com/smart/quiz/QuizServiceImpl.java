@@ -152,11 +152,9 @@ public class QuizServiceImpl implements QuizService {
     if (!hasQuestion) {
       throw new RuntimeException(
           "Faylda savollar to'g'ri formatda emas. Iltimos, quyidagi qoidalarga amal qiling:\n\n" +
-          "1. Savollar quyidagilardan biri bilan boshlanishi kerak:\n" +
-          "   - $ belgisi (masalan: $Savol matni?)\n" +
-          "   - Raqam va nuqta (masalan: 1. Savol matni?)\n" +
-          "2. Savol oxiri ? yoki : bilan tugashi mumkin\n" +
-          "3. Dastlabki 5 qatorda kamida 1 ta savol bo'lishi shart\n\n"
+          "1. Savollarda tartib raqam bo`lishi shart:\n" +
+          "2. Dastlabki 5 qatorda kamida 1 ta savol bo'lishi majburiy\n" +
+          "3. Har bir savolda bitta to`g`ri javob bo`lishi shart\n\n"
       );
     }
 
@@ -193,7 +191,7 @@ public class QuizServiceImpl implements QuizService {
   }
 
   private String parseQuestionText(String line) {
-    if (line.startsWith("$")) {
+    if (Boolean.TRUE.equals(utils.isQuestionLine(line))) {
       return line.substring(1).trim();
     } else if (line.matches("^\\d+\\..*")) {
       return line.replaceFirst("^\\d+\\.\\s*", "").trim();

@@ -1,0 +1,35 @@
+version: '3'
+services:
+  app-quiz:
+    build: .
+    container_name: quiz
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://dbquiz:5432/dbquiz
+      - TZ=Asia/Tashkent
+    ports:
+      - "5000:8080"
+    depends_on:
+      - dbquiz
+    restart: always
+    networks:
+      - log
+  dbquiz:
+    image: postgres:16.1-alpine
+    container_name: dbquiz
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=dbquiz
+      - PGDATA=/var/lib/postgresql/data/pgdata2
+    ports:
+      - "9000:5432"
+    volumes:
+      - pgdata2:/var/lib/postgresql/data
+    restart: always
+    networks:
+      - log
+volumes:
+  pgdata2:
+networks:
+  log:
+    external: true

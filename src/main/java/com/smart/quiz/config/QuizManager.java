@@ -326,26 +326,28 @@ public class QuizManager {
 
   public SendMessage sendQuestionFormatInfo(Long chatId) {
     String infoMessage = """
-        📌 *Savollarni to‘g‘ri formatda yozish bo‘yicha qo‘llanma:*
-
-        ✅ *Savollar* quyidagi belgilardan biri bilan tugashi kerak:
-        - `?` (Savol belgisidan foydalanish shart)
-        - `:` (Ikki nuqta)
-        - `...` (Uch nuqta)
-        - `!` (Undov belgisi)
-        - `__` (Pasti chiziqchalar savol matni orasida qatnashishi mumkin)
-
-        ❌ *Noto‘g‘ri yozilgan savollar* variant sifatida qabul qilinishi mumkin.
-
-        📝 *Misol:*
-        ❌ Noto‘g‘ri: `Dunyodagi eng kichik qush`
-        ✅ To‘g‘ri: `Dunyodagi eng kichik qush?`
-        ✅ To‘g‘ri: `Dunyodagi eng kichik qush:`
-        ✅ To‘g‘ri: `Dunyodagi eng kichik qush...`
-        ✅ To‘g‘ri: `Dunyodagi eng kichik qush!`
-        ✅ To‘g‘ri: `Dunyodagi eng ____ qush`
+        📚 *Quizjon_bot'ga xush kelibsiz!*
         
-        *📢 Iltimos, savollaringizni to‘g‘ri shaklda yozing!*
+        *🤖 Ushbu bot sizga test savollarini birma-bir qo‘lda kiritish 
+        o‘rniga, Word (.docx)fayl orqali tez va qulay tarzda yuklash 
+        imkonini beradi. Savollar fayldan avtomatik o‘qiladi va testga
+        aylantiriladi.*
+        
+        📌 *Savol quyidagicha yoziladi:*
+
+        ✅ ` 1)Dunyodagi eng kichik qush`
+        (Savollar tartib raqamlar bilan ajratilishi kerak!)
+        
+        ✅ *Variantlar esa quyidagicha yoziladi:*
+         ` #Kalibri   ✅ To‘g‘ri javob!
+          Qarg‘a
+          Toychi`
+        
+        ✅ *📎Bitta to‘g‘ri javob varianti oldida `#` belgisi bo‘lishi zarur.
+        Har bir savoldan keyin 3–5 ta variant keltirilishi kerak.*
+
+        *📥 Tayyor bo‘lgan .docx faylingizni yuklang va bot avtomatik tarzda barcha savollarni o‘qib, test yaratadi.*
+        *✉️ Boshlash uchun: /create buyrug‘ini yuboring va fayl yuklang.*
         """;
 
     SendMessage message = new SendMessage();
@@ -383,7 +385,7 @@ public class QuizManager {
 
         userStates.put(chatId, new QuizState());
         startSubjectQuiz(chatId, subjectId);
-        return createMessage(chatId, String.format("👋 %s fanidan quizga xush kelibsiz! Bo‘limni tanlang.", subject.getSubjectName()));
+        return createMessage(chatId, String.format("👋 %s fanidan quizga xush kelibsiz!", subject.getSubjectName()));
       } catch (NumberFormatException | TelegramApiException e) {
         return createMessage(chatId, "❌ Taklif havolasi noto‘g‘ri!");
       }
