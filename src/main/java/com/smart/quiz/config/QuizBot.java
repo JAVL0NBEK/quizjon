@@ -37,7 +37,6 @@ public class QuizBot extends TelegramLongPollingBot {
   private final Map<Long, UploadState> userStateMap = new HashMap<>();
   private final RestTemplate restTemplate = new RestTemplate(); // API so‘rov uchun
 
-
   public QuizBot(@Value("${telegram.bot.token}") String botToken, QuizManager quizManager) {
     super(botToken);
     this.quizManager = quizManager;
@@ -106,7 +105,7 @@ public class QuizBot extends TelegramLongPollingBot {
   }
 
   // ✅ Foydalanuvchi fan nomini kiritgandan keyin APIga yuborish
-  private void handleSubjectInput(Long chatId, String subjectName) {
+  private void handleSubjectInput(Long chatId, String subjectName, String userName) {
     UploadState state = userStateMap.get(chatId);
 
     if (state != null && state.getDocument() != null) {
@@ -116,7 +115,7 @@ public class QuizBot extends TelegramLongPollingBot {
                           "\nFan: " + state.getSubject() +
                           "\n✅ Bazaga saqlash uchun yuborilmoqda...");
 
-      sendToApi(state.getDocument(), state.getSubject(), chatId);
+      sendToApi(state.getDocument(), state.getSubject(), chatId, userName);
       userStateMap.remove(chatId); // Holatni tozalash
     } else {
       sendMessage(chatId, "❌ Oldin fayl yuklang.");
@@ -159,6 +158,7 @@ public class QuizBot extends TelegramLongPollingBot {
   private void handleTextMessage(Message message) throws TelegramApiException {
     Long chatId = message.getChatId();
     String text = message.getText();
+    String userName = message.getFrom().getUserName() != null ? message.getFrom().getUserName() : message.getFrom().getFirstName();
 
     switch (text.toLowerCase()) {
       case "/start":
@@ -183,13 +183,13 @@ public class QuizBot extends TelegramLongPollingBot {
         // Deep linkni qayta ishlash
         if (text.toLowerCase().startsWith("/start ")) {
           String param = text.toLowerCase().substring(7).trim();
-          execute(quizManager.handleInvite(chatId, param));
+          execute(quizManager.handleInvite(chatId, param, userName));
         }
         else if (userStateMap.containsKey(chatId)) {
           UploadState userState = userStateMap.get(chatId);
 
           if (userState.getSubject() == null) {
-            handleSubjectInput(chatId, text);
+            handleSubjectInput(chatId, text, userName);
           }
         } else {
           sendMessage(chatId, "❌ Noto‘g‘ri buyruq. /start dan foydalaning.");
@@ -198,7 +198,7 @@ public class QuizBot extends TelegramLongPollingBot {
   }
 
   // ✅ APIga fayl va fan nomini yuborish
-  private void sendToApi(Document document, String subjectName, Long chatId) {
+  private void sendToApi(Document document, String subjectName, Long chatId, String userName) {
     try {
       String fileUrl = execute(new GetFile(document.getFileId())).getFileUrl(getBotToken());
       byte[] fileBytes = restTemplate.getForObject(fileUrl, byte[].class);
@@ -216,6 +216,7 @@ public class QuizBot extends TelegramLongPollingBot {
       body.add("subject", subjectName);
       body.add("subDesc", "Test");
       body.add("chatId", chatId.toString());
+      body.add("userName", userName);
 
       HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
       String apiUrl = "http://109.172.36.54:5000/v1/quiz/upload-document"; // Kompyuteringiz IP manzili

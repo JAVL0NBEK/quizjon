@@ -15,9 +15,9 @@ public interface QuizService {
 
   QuestionsEntity addQuestion(QuestionsEntity question);
 
-  String processFile(MultipartFile file, String subject, String subDesc, Long chatId);
+  String processFile(MultipartFile file, String subject, String subDesc, Long chatId, String userName);
 
-  void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc, Long chatId);
+  void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc, Long chatId, String userName);
 
   void update(Long id, QuestionsEntity requestDto);
 
@@ -31,6 +31,6 @@ public interface QuizService {
 
   List<QuestionsEntity> getQuestionsBySubjectId(Long subjectId);
 
-  SubjectEntity addSubjectAndUser(String subject, String subDesc, Long chatId);
+  SubjectEntity addSubjectAndUser(String subject, String subDesc, Long chatId, String userName);
 
 }

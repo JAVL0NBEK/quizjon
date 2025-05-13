@@ -65,7 +65,7 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public String processFile(MultipartFile file, String subject, String subDesc, Long chatId) throws RuntimeException {
+  public String processFile(MultipartFile file, String subject, String subDesc, Long chatId, String userName) throws RuntimeException {
     List<QuestionResponseDto> questions;
     try {
       QuestionParseResult result = readQuestionsFromDocx(file);
@@ -76,7 +76,7 @@ public class QuizServiceImpl implements QuizService {
     }
 
     // ✅ Hammasi to‘g‘ri bo‘lsa, savollarni bazaga saqlaymiz:
-    saveQuestionsToDatabase(questions, subject, subDesc, chatId);
+    saveQuestionsToDatabase(questions, subject, subDesc, chatId, userName);
     return "Fayl muvaffaqiyatli yuklandi va savollar bazaga saqlandi!";
   }
 
@@ -200,8 +200,8 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc, Long chatId) {
-    var subjectEntity = addSubjectAndUser(subject, subDesc, chatId);
+  public void saveQuestionsToDatabase(List<QuestionResponseDto> questions, String subject, String subDesc, Long chatId, String userName) {
+    var subjectEntity = addSubjectAndUser(subject, subDesc, chatId, userName);
 
     // 1. Savollarni saqlash
     for (QuestionResponseDto questionDto : questions) {
@@ -227,13 +227,13 @@ public class QuizServiceImpl implements QuizService {
   }
 
   @Override
-  public SubjectEntity addSubjectAndUser(String subject, String subDesc, Long chatId){
+  public SubjectEntity addSubjectAndUser(String subject, String subDesc, Long chatId, String userName){
     // 1. Foydalanuvchi chatId bo‘yicha bazadan qidiriladi
     UserEntity user = usersRepository.findByChatIdWithSubjects(chatId)
         .orElseGet(() -> {
           // 2. Agar user topilmasa, yangi user yaratamiz
           UserEntity newUser = new UserEntity();
-          newUser.setUserName("User_" + chatId); // Ismni ixtiyoriy qilib qo'yamiz
+          newUser.setUserName(userName + "=" + chatId); // Ismni ixtiyoriy qilib qo'yamiz
           newUser.setChatId(chatId);
           newUser.setSubjects(new ArrayList<>());
           return usersRepository.save(newUser); // Yangi userni bazaga saqlaymiz
