@@ -16,4 +16,4 @@ COPY build/libs/quiz-0.0.1-SNAPSHOT.jar quiz-0.0.1-SNAPSHOT.jar
 EXPOSE 8080
 
 # Run the jar file
-CMD ["java", "-jar", "quiz-0.0.1-SNAPSHOT.jar"]
+CMD ["java", "-jar", "quiz-0.0.1-SNAPSHOT.jar", "--spring.profiles.active=prod"]

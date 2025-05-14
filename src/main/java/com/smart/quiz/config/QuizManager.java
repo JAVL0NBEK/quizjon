@@ -19,7 +19,10 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.polls.SendPoll;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 @Slf4j
@@ -307,7 +310,8 @@ public class QuizManager {
           "📊 *Statistika (%s):*\n\n" +
           "• 📌 Umumiy savollar: %d\n" +
           "• ✅ To'g'ri javoblar: %d (%.2f%%)\n" +
-          "• ❌ Noto'g'ri javoblar: %d",
+          "• ❌ Noto'g'ri javoblar: %d\n\n" +
+          "👇 Yana quiz ishlamoqchi bo‘lsangiz /quiz yoki pastdagi tugmani bosing:",
           state.getCurrentSection(),
           totalQuestions,
           state.getCorrectAnswersCount(),
@@ -315,10 +319,27 @@ public class QuizManager {
           state.getWrongAnswersCount()
       );
       message.setText(statsMessage);
-      state.setActive(false); // Statistika ko‘rsatilgandan keyin quiz faol emas
+      state.setActive(false);
       userStates.remove(userId);
     }
+
     message.setParseMode("Markdown");
+
+    // 🔘 ReplyKeyboardMarkup bilan oddiy /quiz tugmasi
+    ReplyKeyboardMarkup keyboard = new ReplyKeyboardMarkup();
+    KeyboardButton quizButton = new KeyboardButton("/quiz");
+
+    KeyboardRow keyboardRow = new KeyboardRow();
+    keyboardRow.add(quizButton);
+    List<KeyboardRow> keyboardRows = new ArrayList<>();
+    keyboardRows.add(keyboardRow);
+
+    keyboard.setKeyboard(keyboardRows);
+    keyboard.setResizeKeyboard(true);
+    keyboard.setOneTimeKeyboard(true); // Tugma faqat bir marta ko‘rinadi
+
+    message.setReplyMarkup(keyboard);
+
     return message;
   }
 
@@ -373,13 +394,13 @@ public class QuizManager {
   }
 
   // Deep link orqali kelgan taklifni qayta ishlash
-  public SendMessage handleInvite(Long chatId, String param) {
+  public SendMessage handleInvite(Long chatId, String param, String userName) {
     if (param.startsWith("subject_")) {
       try {
         Long subjectId = Long.parseLong(param.replace("subject_", ""));
         SubjectEntity subject = quizService.getSubjectById(subjectId);
         //agar user yoki subject topilmasa yaratadi bir biriga ham bog`laydi
-        quizService.addSubjectAndUser(subject.getSubjectName(), subject.getDescription(), chatId);
+        quizService.addSubjectAndUser(subject.getSubjectName(), subject.getDescription(), chatId, userName);
 
         userStates.put(chatId, new QuizState());
         startSubjectQuiz(chatId, subjectId);

@@ -30,6 +30,8 @@ public class UserEntity {
 
   private Long chatId;
 
+  private boolean access = false;
+
   @ManyToMany
   @JoinTable(
       name = "user_subjects",
