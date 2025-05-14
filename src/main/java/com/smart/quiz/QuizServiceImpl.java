@@ -233,7 +233,7 @@ public class QuizServiceImpl implements QuizService {
         .orElseGet(() -> {
           // 2. Agar user topilmasa, yangi user yaratamiz
           UserEntity newUser = new UserEntity();
-          newUser.setUserName(userName + "=" + chatId); // Ismni ixtiyoriy qilib qo'yamiz
+          newUser.setUserName(userName + "_" + chatId); // Ismni ixtiyoriy qilib qo'yamiz
           newUser.setChatId(chatId);
           newUser.setSubjects(new ArrayList<>());
           return usersRepository.save(newUser); // Yangi userni bazaga saqlaymiz
