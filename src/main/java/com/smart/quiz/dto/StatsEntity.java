@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -49,5 +50,5 @@ public class StatsEntity {
   private String correctPercentage;
 
   @Column(name = "created_at", nullable = false)
-  private LocalDate createdAt;
+  private LocalDateTime createdAt;
 }

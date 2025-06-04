@@ -10,12 +10,16 @@ import com.smart.quiz.dto.StatsEntity;
 import com.smart.quiz.dto.SubjectEntity;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -35,7 +39,7 @@ public class QuizManager {
 
   private final QuizService quizService;
   private final QuizBot quizBot; // QuizBot obyektini qo‘shamiz
-
+  public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
   // Har bir foydalanuvchi uchun holatni saqlash uchun Map
   private final Map<Long, QuizState> userStates = new ConcurrentHashMap<>();
 
@@ -230,14 +234,20 @@ public class QuizManager {
     return createMessage(userId, "👋 Botdan chiqdingiz. Qaytadan boshlash uchun /start ni yuboring.");
   }
 
-  public SendMessage sendResults(Long userId) {
-    List<StatsEntity> stats = statsRepository.getByUserId(userId);
+  public SendMessage sendResults(Long userId, Integer statCount) {
+    List<StatsEntity> stats = statsRepository.getByUserId(userId)
+        .stream()
+        .sorted(Comparator.comparing(StatsEntity::getCreatedAt).reversed())
+        .limit(statCount)
+        .toList();
+
     StringBuilder message = new StringBuilder("📊 Test natijalari:\n\n");
     int count = 1;
     for (StatsEntity result : stats) {
       message.append("📘 ").append(count++).append("-fan: ").append(result.getSubjectName())
           .append("\n")
           .append("🔹 ").append(result.getCurrentSection()).append("\n")
+          .append("📅 Sana: ").append(result.getCreatedAt().format(DATE_TIME_FORMATTER)).append("\n")
           .append("🧮 Jami: ").append(result.getTotalQuestions()).append(" ta savol belgilandi\n")
           .append("✅ To‘g‘ri javoblar: ").append(result.getCorrectAnswersCount()).append(" (")
           .append(result.getCorrectPercentage()).append(")").append("\n")
@@ -354,7 +364,7 @@ public class QuizManager {
       statsEntity.setCorrectAnswersCount((long) state.getCorrectAnswersCount());
       statsEntity.setWrongAnswersCount((long) state.getWrongAnswersCount());
       statsEntity.setCorrectPercentage(formattedPercentage);
-      statsEntity.setCreatedAt(LocalDate.now());
+      statsEntity.setCreatedAt(LocalDateTime.now());
       quizService.addStats(statsEntity);
 
       message.setText(statsMessage);
