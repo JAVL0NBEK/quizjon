@@ -176,6 +176,9 @@ public class QuizBot extends TelegramLongPollingBot {
       case "/exit":
         execute(quizManager.exitBot(chatId));
         break;
+      case "/result":
+        execute(quizManager.sendResults(chatId));
+        break;
       case "/create":
         requestDocumentUpload(chatId);
         break;
