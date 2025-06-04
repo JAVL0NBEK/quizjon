@@ -3,6 +3,7 @@ package com.smart.quiz.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smart.quiz.dto.UploadState;
+import com.smart.quiz.dto.UploadStep;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -100,7 +101,7 @@ public class QuizBot extends TelegramLongPollingBot {
     UploadState state = userStateMap.get(chatId);
     state.setDocument(document);
 
-    // Endi fan nomini so'ra
+    // Endi fan nomini so'rang
     sendMessage(chatId, "✅ Fayl qabul qilindi!\n\nEndi quiz qaysi fan yoki mavzuga tegishli ekanligini kiriting:");
   }
 
@@ -108,7 +109,7 @@ public class QuizBot extends TelegramLongPollingBot {
   private void handleSubjectInput(Long chatId, String subjectName, String userName) {
     UploadState state = userStateMap.get(chatId);
 
-    if (state != null && state.getDocument() != null) {
+    if (state != null && state.getStep() == UploadStep.WAITING_FOR_SUBJECT && state.getDocument() != null) {
       state.setSubject(subjectName);
       sendMessage(chatId, "📤 Fayl, fan nomi va savollar soni qabul qilindi!" +
                           "\nFayl: " + state.getDocument().getFileName() +
@@ -122,6 +123,16 @@ public class QuizBot extends TelegramLongPollingBot {
     }
   }
 
+  private void handleStatInput(Long chatId, String text)  throws TelegramApiException {
+    try {
+      int count = Integer.parseInt(text.trim());
+      //userStateMap.remove(chatId); // step tugadi
+      execute(quizManager.sendResults(chatId, count));
+    } catch (NumberFormatException e) {
+      sendMessage(chatId, "❌ Iltimos, faqat son kiriting. Masalan: 3");
+    }
+  }
+
   //
   // ✅ Inline tugma orqali fayl yuklashni so‘rash
   private void requestDocumentUpload(Long chatId) throws TelegramApiException {
@@ -132,6 +143,17 @@ public class QuizBot extends TelegramLongPollingBot {
     SendMessage message = new SendMessage();
     message.setChatId(chatId);
     message.setText("📎 Iltimos, quiz savollarini o'z ichiga olgan faylni yuboring (docx formatida).");
+    execute(message);
+  }
+
+  private void latestResults(Long chatId) throws TelegramApiException {
+
+    // Yangi holat yaratish
+    userStateMap.put(chatId, new UploadState());
+
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId);
+    message.setText("Ohirgi nechta natijalaringizni ko`rmoqchisiz sonini kiriting ");
     execute(message);
   }
 
@@ -177,7 +199,8 @@ public class QuizBot extends TelegramLongPollingBot {
         execute(quizManager.exitBot(chatId));
         break;
       case "/result":
-        execute(quizManager.sendResults(chatId));
+        userStateMap.put(chatId, new UploadState(UploadStep.WAITING_FOR_RESULT_COUNT));
+        sendMessage(chatId, "📊 Ohirgi nechta natijangizni ko‘rmoqchisiz?(masalan 3)");
         break;
       case "/create":
         requestDocumentUpload(chatId);
@@ -191,8 +214,10 @@ public class QuizBot extends TelegramLongPollingBot {
         else if (userStateMap.containsKey(chatId)) {
           UploadState userState = userStateMap.get(chatId);
 
-          if (userState.getSubject() == null) {
+          if (userState.getStep() == UploadStep.WAITING_FOR_SUBJECT && userState.getSubject() == null) {
             handleSubjectInput(chatId, text, userName);
+          } else if (userState.getStep() == UploadStep.WAITING_FOR_RESULT_COUNT) {
+            handleStatInput(chatId, text); // faqat result uchun
           }
         } else {
           sendMessage(chatId, "❌ Noto‘g‘ri buyruq. /start dan foydalaning.");

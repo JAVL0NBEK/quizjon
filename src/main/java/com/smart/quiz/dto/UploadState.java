@@ -11,9 +11,12 @@ import org.telegram.telegrambots.meta.api.objects.Document;
 @Getter
 @Setter
 public class UploadState {
-
+  private UploadStep step;
   private Document document;
   private String subject;
-  private Integer questionCount;
+  private Integer statCount;
 
+  public UploadState(UploadStep step) {
+    this.step = step;
+  }
 }
