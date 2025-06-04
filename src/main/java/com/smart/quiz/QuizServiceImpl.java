@@ -4,6 +4,7 @@ import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.QuestionParseResult;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
+import com.smart.quiz.dto.StatsEntity;
 import com.smart.quiz.dto.SubjectEntity;
 import com.smart.quiz.dto.SubjectRequestDto;
 import com.smart.quiz.dto.UserEntity;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,8 +36,7 @@ public class QuizServiceImpl implements QuizService {
   private final SubjectRepository subjectRepository;
   private final Utils utils;
   private final UsersRepository usersRepository;
-
-
+  private final StatsRepository statsRepository;
 
   @Override
   public List<QuestionsEntity> getAllQuestions() {
@@ -255,6 +256,21 @@ public class QuizServiceImpl implements QuizService {
     }
 
     return subjectEntity;
+  }
+
+  @Override
+  public Optional<SubjectEntity> getBySubjectId(Long subjectId) {
+    return subjectRepository.findById(subjectId);
+  }
+
+  @Override
+  public void addStats(StatsEntity statsEntity) {
+    statsRepository.save(statsEntity);
+  }
+
+  @Override
+  public List<StatsEntity> getAllStatsByUserId(Long userId) {
+    return statsRepository.getByUserId(userId);
   }
 
   @Override

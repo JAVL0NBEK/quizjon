@@ -1,11 +1,15 @@
 package com.smart.quiz.config;
 
 import com.smart.quiz.QuizService;
+import com.smart.quiz.StatsRepository;
 import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
 import com.smart.quiz.dto.QuizState;
+import com.smart.quiz.dto.StatsEntity;
 import com.smart.quiz.dto.SubjectEntity;
+import java.text.DecimalFormat;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,12 +41,14 @@ public class QuizManager {
 
   // Bo‘limlar ro‘yxati (masalan, har birida 50 ta savol)
   private final Map<String, List<Long>> sections = new HashMap<>();
+  private final StatsRepository statsRepository;
 
   @Autowired
-  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot) {
+  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot, StatsRepository statsRepository) {
     this.quizService = quizService;
     this.quizBot = quizBot;
     initializeSections(); // Bo‘limlarni boshlang‘ich holatda yuklash
+    this.statsRepository = statsRepository;
   }
 
   // Quizni boshlash: Faol quiz mavjudligini tekshiradi
@@ -224,6 +230,24 @@ public class QuizManager {
     return createMessage(userId, "👋 Botdan chiqdingiz. Qaytadan boshlash uchun /start ni yuboring.");
   }
 
+  public SendMessage sendResults(Long userId) {
+    List<StatsEntity> stats = statsRepository.getByUserId(userId);
+    StringBuilder message = new StringBuilder("📊 Test natijalari:\n\n");
+    int count = 1;
+    for (StatsEntity result : stats) {
+      message.append("📘 ").append(count++).append("-fan: ").append(result.getSubjectName())
+          .append("\n")
+          .append("🔹 ").append(result.getCurrentSection()).append("\n")
+          .append("🧮 Jami: ").append(result.getTotalQuestions()).append(" ta savol belgilandi\n")
+          .append("✅ To‘g‘ri javoblar: ").append(result.getCorrectAnswersCount()).append(" (")
+          .append(result.getCorrectPercentage()).append(")").append("\n")
+          .append("❌ Noto‘g‘ri javoblar: ").append(result.getWrongAnswersCount()).append("\n")
+          .append("-------------------------\n");
+    }
+
+    return createMessage(userId, message.toString());
+  }
+
   public SendPoll getQuestionMessage(Long userId) {
     QuizState state = userStates.get(userId);
     List<Long> sectionQuestions = state.getSections().get(state.getCurrentSection());
@@ -305,19 +329,34 @@ public class QuizManager {
     } else {
       long totalQuestions = state.getCorrectAnswersCount() + state.getWrongAnswersCount();
       double correctPercentage = totalQuestions > 0 ? (double) state.getCorrectAnswersCount() / totalQuestions * 100 : 0.0;
-
+      DecimalFormat df = new DecimalFormat("#0.0");
+      String formattedPercentage = df.format(correctPercentage) + "%";
       String statsMessage = String.format(
           "📊 *Statistika (%s):*\n\n" +
           "• 📌 Umumiy savollar: %d\n" +
-          "• ✅ To'g'ri javoblar: %d (%.2f%%)\n" +
+          "• ✅ To'g'ri javoblar: %d (%s)\n" +
           "• ❌ Noto'g'ri javoblar: %d\n\n" +
           "👇 Yana quiz ishlamoqchi bo‘lsangiz /quiz yoki pastdagi tugmani bosing:",
           state.getCurrentSection(),
           totalQuestions,
           state.getCorrectAnswersCount(),
-          correctPercentage,
+          formattedPercentage,
           state.getWrongAnswersCount()
       );
+      var subject = quizService.getBySubjectId(state.getSubjectId());
+      StatsEntity statsEntity = new StatsEntity();
+      statsEntity.setSubjectId(state.getSubjectId());
+      statsEntity.setUserId(userId.toString());
+      subject.ifPresent(
+          subjectEntity -> statsEntity.setSubjectName(subjectEntity.getSubjectName()));
+      statsEntity.setCurrentSection(state.getCurrentSection());
+      statsEntity.setTotalQuestions(totalQuestions);
+      statsEntity.setCorrectAnswersCount((long) state.getCorrectAnswersCount());
+      statsEntity.setWrongAnswersCount((long) state.getWrongAnswersCount());
+      statsEntity.setCorrectPercentage(formattedPercentage);
+      statsEntity.setCreatedAt(LocalDate.now());
+      quizService.addStats(statsEntity);
+
       message.setText(statsMessage);
       state.setActive(false);
       userStates.remove(userId);
