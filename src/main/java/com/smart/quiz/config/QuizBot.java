@@ -100,6 +100,7 @@ public class QuizBot extends TelegramLongPollingBot {
 
     UploadState state = userStateMap.get(chatId);
     state.setDocument(document);
+    state.setStep(UploadStep.WAITING_FOR_SUBJECT);
 
     // Endi fan nomini so'rang
     sendMessage(chatId, "✅ Fayl qabul qilindi!\n\nEndi quiz qaysi fan yoki mavzuga tegishli ekanligini kiriting:");
@@ -145,19 +146,7 @@ public class QuizBot extends TelegramLongPollingBot {
     message.setText("📎 Iltimos, quiz savollarini o'z ichiga olgan faylni yuboring (docx formatida).");
     execute(message);
   }
-
-  private void latestResults(Long chatId) throws TelegramApiException {
-
-    // Yangi holat yaratish
-    userStateMap.put(chatId, new UploadState());
-
-    SendMessage message = new SendMessage();
-    message.setChatId(chatId);
-    message.setText("Ohirgi nechta natijalaringizni ko`rmoqchisiz sonini kiriting ");
-    execute(message);
-  }
-
-
+  
   private void handlePollAnswer(PollAnswer pollAnswer) {
     Long userId = pollAnswer.getUser().getId();
     Integer selectedOption = pollAnswer.getOptionIds().get(0); // Foydalanuvchi tanlagan variant
