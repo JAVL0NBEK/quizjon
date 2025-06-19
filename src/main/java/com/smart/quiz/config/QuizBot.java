@@ -146,7 +146,7 @@ public class QuizBot extends TelegramLongPollingBot {
     message.setText("📎 Iltimos, quiz savollarini o'z ichiga olgan faylni yuboring (docx formatida).");
     execute(message);
   }
-  
+
   private void handlePollAnswer(PollAnswer pollAnswer) {
     Long userId = pollAnswer.getUser().getId();
     Integer selectedOption = pollAnswer.getOptionIds().get(0); // Foydalanuvchi tanlagan variant
