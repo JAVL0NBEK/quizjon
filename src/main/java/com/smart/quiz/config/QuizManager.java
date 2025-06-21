@@ -2,12 +2,14 @@ package com.smart.quiz.config;
 
 import com.smart.quiz.QuizService;
 import com.smart.quiz.StatsRepository;
+import com.smart.quiz.UsersRepository;
 import com.smart.quiz.dto.OptionResponseDto;
 import com.smart.quiz.dto.QuestionResponseDto;
 import com.smart.quiz.dto.QuestionsEntity;
 import com.smart.quiz.dto.QuizState;
 import com.smart.quiz.dto.StatsEntity;
 import com.smart.quiz.dto.SubjectEntity;
+import com.smart.quiz.dto.UserEntity;
 import java.text.DecimalFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -38,17 +40,21 @@ public class QuizManager {
   private final QuizService quizService;
   private final QuizBot quizBot; // QuizBot obyektini qo‘shamiz
   public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+  public static final Long ADMIN_CHAT_ID = 778149769L;
   // Har bir foydalanuvchi uchun holatni saqlash uchun Map
   private final Map<Long, QuizState> userStates = new ConcurrentHashMap<>();
 
   // Bo‘limlar ro‘yxati (masalan, har birida 50 ta savol)
   private final Map<String, List<Long>> sections = new HashMap<>();
   private final StatsRepository statsRepository;
+  private final UsersRepository usersRepository;
 
   @Autowired
-  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot, StatsRepository statsRepository) {
+  public QuizManager(QuizService quizService,@Lazy QuizBot quizBot, StatsRepository statsRepository,
+      UsersRepository usersRepository) {
     this.quizService = quizService;
     this.quizBot = quizBot;
+    this.usersRepository = usersRepository;
     initializeSections(); // Bo‘limlarni boshlang‘ich holatda yuklash
     this.statsRepository = statsRepository;
   }
@@ -72,32 +78,73 @@ public class QuizManager {
     SendMessage message = new SendMessage();
     message.setChatId(chatId.toString());
 
+    boolean hasAccess = usersRepository.findByChatId(chatId)
+        .map(UserEntity::isAccess)
+        .orElse(false);
 
     List<SubjectEntity> subjects = quizService.getAllSubjects(chatId);
     List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
-
-    if (subjects.isEmpty()){
+    if (!hasAccess) {
+      message.setText("📚 Sizda quizdan foydalanish uchun ruxsat yo`q!");
+    }
+    else if (subjects.isEmpty()){
       message.setText("📚 Sizda quiz savollar mavjud emas! /create buyrug‘idan foydalaning quydagi "
                       + "linkda quiz savollarini to`g`ri yaratish bo`yicha namuna ko`rsatilgan");
     } else {
       message.setText("📚 Fanlardan birini tanlang:");
+      for (SubjectEntity subject : subjects) {
+        InlineKeyboardButton selectButton = new InlineKeyboardButton();
+        selectButton.setText(subject.getSubjectName());
+        selectButton.setCallbackData("subject_" + subject.getId());
+
+        InlineKeyboardButton shareButton = new InlineKeyboardButton();
+        shareButton.setText("📤 Ulashish");
+        shareButton.setCallbackData("share_subject_" + subject.getId());
+
+        keyboard.add(List.of(selectButton, shareButton));
+      }
+
+      InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+      markup.setKeyboard(keyboard);
+      message.setReplyMarkup(markup);
+
     }
 
-    for (SubjectEntity subject : subjects) {
-      InlineKeyboardButton selectButton = new InlineKeyboardButton();
-      selectButton.setText(subject.getSubjectName());
-      selectButton.setCallbackData("subject_" + subject.getId());
+    return message;
+  }
 
-      InlineKeyboardButton shareButton = new InlineKeyboardButton();
-      shareButton.setText("📤 Ulashish");
-      shareButton.setCallbackData("share_subject_" + subject.getId());
+  // Fanlar ro‘yxatini ko‘rsatish
+  public SendMessage accessChange(Long chatId) {
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId.toString());
 
-      keyboard.add(List.of(selectButton, shareButton));
+    List<UserEntity> users = usersRepository.findAll();
+    List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+    if (users.isEmpty()){
+      message.setText("📚 Quizdan foydalanayotganlar mavjud emas");
+    } else {
+      message.setText("📚 Foydalanuvchilar:");
+      for (UserEntity user : users) {
+        InlineKeyboardButton selectButton = new InlineKeyboardButton();
+        selectButton.setText(user.getUserName());
+        selectButton.setCallbackData("user_" + user.getId());
+
+        InlineKeyboardButton shareButton = new InlineKeyboardButton();
+        if (!user.isAccess()) {
+          shareButton.setText("📤 blokdan chiqarish");
+        } else {
+          shareButton.setText("📤 bloklash");
+        }
+        shareButton.setCallbackData("permission_management_" + user.getId());
+
+        keyboard.add(List.of(selectButton, shareButton));
+      }
+
+      InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+      markup.setKeyboard(keyboard);
+      message.setReplyMarkup(markup);
+
     }
-
-    InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
-    markup.setKeyboard(keyboard);
-    message.setReplyMarkup(markup);
 
     return message;
   }
@@ -132,6 +179,11 @@ public class QuizManager {
     else if (callbackData.startsWith("share_subject_")) {
       Long subjectId = Long.parseLong(callbackData.replace("share_subject_", ""));
       quizBot.execute(shareSubject(userId, subjectId));
+    }
+    //permission_management_
+    else if (callbackData.startsWith("permission_management_")) {
+      Long chatId = Long.parseLong(callbackData.replace("permission_management_", ""));
+      quizBot.execute(permissionManagement(chatId));
     }
     // Bo‘limni tanlash
     else if (callbackData.startsWith("section_")) {
@@ -180,6 +232,18 @@ public class QuizManager {
             """, subject.getSubjectName(), shareLink);
 
     return createMessage(userId, shareMessage);
+  }
+
+  private SendMessage permissionManagement(Long userId) {
+
+    usersRepository.findById(userId).ifPresent(user -> {
+      user.setAccess(!user.isAccess());
+      usersRepository.save(user);
+    });
+
+    String shareMessage = "Foydalanuvchi bloklandi. Tekshirish uchun /check buyrug`ini kiriting";
+
+    return createMessage(ADMIN_CHAT_ID, shareMessage);
   }
 
   // Savollarni bo‘limlarga bo‘lish
@@ -393,27 +457,6 @@ public class QuizManager {
   public SendMessage sendQuestionFormatInfo(Long chatId) {
     String infoMessage = """
         📚 *Quizjon_bot'ga xush kelibsiz!*
-        
-        *🤖 Ushbu bot sizga test savollarini birma-bir qo‘lda kiritish 
-        o‘rniga, Word (.docx)fayl orqali tez va qulay tarzda yuklash 
-        imkonini beradi. Savollar fayldan avtomatik o‘qiladi va testga
-        aylantiriladi.*
-        
-        📌 *Savol quyidagicha yoziladi:*
-
-        ✅ ` 1)Dunyodagi eng kichik qush`
-        (Savollar tartib raqamlar bilan ajratilishi kerak!)
-        
-        ✅ *Variantlar esa quyidagicha yoziladi:*
-         ` #Kalibri   ✅ To‘g‘ri javob!
-          Qarg‘a
-          Toychi`
-        
-        ✅ *📎Bitta to‘g‘ri javob varianti oldida `#` belgisi bo‘lishi zarur.
-        Har bir savoldan keyin 3–5 ta variant keltirilishi kerak.*
-
-        *📥 Tayyor bo‘lgan .docx faylingizni yuklang va bot avtomatik tarzda barcha savollarni o‘qib, test yaratadi.*
-        *✉️ Boshlash uchun: /create buyrug‘ini yuboring va fayl yuklang.*
         """;
 
     SendMessage message = new SendMessage();

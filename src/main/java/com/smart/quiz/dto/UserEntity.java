@@ -30,7 +30,7 @@ public class UserEntity {
 
   private Long chatId;
 
-  private boolean access = false;
+  private boolean access = true;
 
   @ManyToMany
   @JoinTable(
