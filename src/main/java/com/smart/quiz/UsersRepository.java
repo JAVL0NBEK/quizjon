@@ -13,4 +13,6 @@ public interface UsersRepository extends JpaRepository<UserEntity, Long> {
   @Query("SELECT u FROM UserEntity u LEFT JOIN FETCH u.subjects WHERE u.chatId = :chatId")
   Optional<UserEntity> findByChatIdWithSubjects(@Param("chatId") Long chatId);
 
+  Optional<UserEntity> findByChatId (Long userId);
+
 }

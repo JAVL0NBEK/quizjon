@@ -138,66 +138,56 @@ public class QuizServiceImpl implements QuizService {
     List<QuestionResponseDto> questions = new ArrayList<>();
     List<String> errorLines = new ArrayList<>();
     QuestionResponseDto currentQuestion = null;
-    final int CHECK_LINES = 5; // Tekshiriladigan dastlabki qatorlar soni
 
-    // Dastlabki 5 qatorni tekshirish
-    boolean hasQuestion = false;
-    for (int i = 0; i < Math.min(CHECK_LINES, lines.size()); i++) {
-      String line = lines.get(i).trim();
-      if (!line.isEmpty() && Boolean.TRUE.equals(utils.isQuestionLine(line))) {
-        hasQuestion = true;
-        break;
-      }
-    }
+    for (String rawLine : lines) {
+      String line = rawLine.trim();
+      if (line.isEmpty()) continue;
 
-    if (!hasQuestion) {
-      throw new RuntimeException(
-          "Faylda savollar to'g'ri formatda emas. Iltimos, quyidagi qoidalarga amal qiling:\n\n" +
-          "1. Savollarda tartib raqam bo`lishi shart:\n" +
-          "2. Dastlabki 5 qatorda kamida 1 ta savol bo'lishi majburiy\n" +
-          "3. Har bir savolda bitta to`g`ri javob bo`lishi shart\n\n"
-      );
-    }
-
-    // Asosiy savollarni qayta ishlash
-    for (String line : lines) {
-      line = line.trim();
-      if (line.isEmpty()) {
-        continue;
-      }
-
-      if (Boolean.TRUE.equals(utils.isQuestionLine(line))) {
+      // Agar yangi savol ($ bilan boshlansa)
+      if (line.startsWith("$")) {
+        // Oldingi savolni ro'yxatga qo'shamiz (agar variantlari 4 ta bo'lsa)
         if (currentQuestion != null) {
-          questions.add(currentQuestion);
+          if (currentQuestion.getOptions().size() == 4) {
+            questions.add(currentQuestion);
+          } else {
+            errorLines.add("Variantlar soni 4 emas: " + currentQuestion.getQuestionText());
+          }
         }
 
+        // Yangi savolni boshlaymiz
         currentQuestion = new QuestionResponseDto();
-        String questionText = parseQuestionText(line);
-        currentQuestion.setQuestionText(questionText);
+        currentQuestion.setQuestionText(line.substring(1).trim());
         currentQuestion.setOptions(new ArrayList<>());
+      }
 
-      } else if (currentQuestion != null) {
+      // Aks holda bu variant bo'lishi mumkin
+      else if (currentQuestion != null && currentQuestion.getOptions().size() < 4) {
+        boolean isCorrect = line.startsWith("#");
+        String optionText = isCorrect ? line.substring(1).trim() : line;
+
         OptionResponseDto option = new OptionResponseDto();
-        option.setOptionText(line.startsWith("#") ? line.substring(1) : line);
-        option.setCorrect(line.startsWith("#"));
+        option.setOptionText(optionText);
+        option.setCorrect(isCorrect);
+
         currentQuestion.getOptions().add(option);
+      }
+
+      // Agar `currentQuestion == null` bo‘lsa — bu yerdan muammo chiqadi
+      else {
+        errorLines.add("Savol boshlanmasdan oldin variant kelgan: " + line);
       }
     }
 
+    // Oxirgi savolni qo‘shamiz
     if (currentQuestion != null) {
-      questions.add(currentQuestion);
+      if (currentQuestion.getOptions().size() == 4) {
+        questions.add(currentQuestion);
+      } else {
+        errorLines.add("Oxirgi savolning variantlari yetarli emas: " + currentQuestion.getQuestionText());
+      }
     }
 
     return new QuestionParseResult(questions, errorLines);
-  }
-
-  private String parseQuestionText(String line) {
-    if (Boolean.TRUE.equals(utils.isQuestionLine(line))) {
-      return line.substring(1).trim();
-    } else if (line.matches("^\\d+\\..*")) {
-      return line.replaceFirst("^\\d+\\.\\s*", "").trim();
-    }
-    return line;
   }
 
   @Override
@@ -236,6 +226,7 @@ public class QuizServiceImpl implements QuizService {
           UserEntity newUser = new UserEntity();
           newUser.setUserName(userName + "_" + chatId); // Ismni ixtiyoriy qilib qo'yamiz
           newUser.setChatId(chatId);
+          newUser.setAccess(true);
           newUser.setSubjects(new ArrayList<>());
           return usersRepository.save(newUser); // Yangi userni bazaga saqlaymiz
         });
