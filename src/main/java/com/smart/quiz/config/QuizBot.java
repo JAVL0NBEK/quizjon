@@ -187,6 +187,9 @@ public class QuizBot extends TelegramLongPollingBot {
       case "/exit":
         execute(quizManager.exitBot(chatId));
         break;
+      case "/check":
+        execute(quizManager.accessChange(chatId));
+        break;
       case "/result":
         userStateMap.put(chatId, new UploadState(UploadStep.WAITING_FOR_RESULT_COUNT));
         sendMessage(chatId, "📊 Ohirgi nechta natijangizni ko‘rmoqchisiz?(masalan 3)");

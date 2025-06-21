@@ -15,4 +15,6 @@ public interface UsersRepository extends JpaRepository<UserEntity, Long> {
 
   Optional<UserEntity> findByChatId (Long userId);
 
+  Optional<UserEntity> findById (Long id);
+
 }

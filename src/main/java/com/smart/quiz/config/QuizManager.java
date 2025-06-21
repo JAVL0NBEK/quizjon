@@ -40,6 +40,7 @@ public class QuizManager {
   private final QuizService quizService;
   private final QuizBot quizBot; // QuizBot obyektini qo‘shamiz
   public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+  public static final Long ADMIN_CHAT_ID = 778149769L;
   // Har bir foydalanuvchi uchun holatni saqlash uchun Map
   private final Map<Long, QuizState> userStates = new ConcurrentHashMap<>();
 
@@ -112,6 +113,42 @@ public class QuizManager {
     return message;
   }
 
+  // Fanlar ro‘yxatini ko‘rsatish
+  public SendMessage accessChange(Long chatId) {
+    SendMessage message = new SendMessage();
+    message.setChatId(chatId.toString());
+
+    List<UserEntity> users = usersRepository.findAll();
+    List<List<InlineKeyboardButton>> keyboard = new ArrayList<>();
+    if (users.isEmpty()){
+      message.setText("📚 Quizdan foydalanayotganlar mavjud emas");
+    } else {
+      message.setText("📚 Foydalanuvchilar:");
+      for (UserEntity user : users) {
+        InlineKeyboardButton selectButton = new InlineKeyboardButton();
+        selectButton.setText(user.getUserName());
+        selectButton.setCallbackData("user_" + user.getId());
+
+        InlineKeyboardButton shareButton = new InlineKeyboardButton();
+        if (!user.isAccess()) {
+          shareButton.setText("📤 blokdan chiqarish");
+        } else {
+          shareButton.setText("📤 bloklash");
+        }
+        shareButton.setCallbackData("permission_management_" + user.getId());
+
+        keyboard.add(List.of(selectButton, shareButton));
+      }
+
+      InlineKeyboardMarkup markup = new InlineKeyboardMarkup();
+      markup.setKeyboard(keyboard);
+      message.setReplyMarkup(markup);
+
+    }
+
+    return message;
+  }
+
   private void initializeSections() {
     List<Long> allQuestionIds = quizService.getAllQuestionIds();
     int sectionSize = 50;
@@ -142,6 +179,11 @@ public class QuizManager {
     else if (callbackData.startsWith("share_subject_")) {
       Long subjectId = Long.parseLong(callbackData.replace("share_subject_", ""));
       quizBot.execute(shareSubject(userId, subjectId));
+    }
+    //permission_management_
+    else if (callbackData.startsWith("permission_management_")) {
+      Long chatId = Long.parseLong(callbackData.replace("permission_management_", ""));
+      quizBot.execute(permissionManagement(chatId));
     }
     // Bo‘limni tanlash
     else if (callbackData.startsWith("section_")) {
@@ -190,6 +232,18 @@ public class QuizManager {
             """, subject.getSubjectName(), shareLink);
 
     return createMessage(userId, shareMessage);
+  }
+
+  private SendMessage permissionManagement(Long userId) {
+
+    usersRepository.findById(userId).ifPresent(user -> {
+      user.setAccess(!user.isAccess());
+      usersRepository.save(user);
+    });
+
+    String shareMessage = "Foydalanuvchi bloklandi. Tekshirish uchun /check buyrug`ini kiriting";
+
+    return createMessage(ADMIN_CHAT_ID, shareMessage);
   }
 
   // Savollarni bo‘limlarga bo‘lish
